@@ -33,6 +33,7 @@
 | 金额与价格 | [`rust_decimal`](https://docs.rs/rust_decimal/latest/rust_decimal/) | 已选定 | MIT | 固定精度，适合资金、价格、fee 和 PnL；避免二进制浮点误差 | `f32/f64` 禁止用于资金；`bigdecimal` 对当前精度需求过重 |
 | CSV | [`csv`](https://docs.rs/csv/latest/csv/) + Serde | 已使用（dev） | Unlicense OR MIT | 轻量、成熟；DATA-008 使用它重放 50 场人工核验 fixture | `polars` 过重；复杂分析交给 Python |
 | Date/time | [`chrono`](https://docs.rs/chrono/latest/chrono/) `0.4.45` | 已使用 | MIT OR Apache-2.0 | 成熟的 timezone-aware `DateTime<Utc>` 与 RFC3339 Serde 支持；避免手写时间解析 | 关闭默认特性，仅启用 `std`、`serde`；不使用本地时区；`time` 同样成熟，但同时使用两套时间类型没有收益 |
+| SHA-256 commitment | RustCrypto [`sha2`](https://docs.rs/sha2/latest/sha2/) `0.11.0` | 已使用 | MIT OR Apache-2.0 | HIST-005 使用标准 `Digest` API 生成 final test membership commitment，避免自行实现密码学哈希 | `ring` 覆盖面更大但当前无此需求；PowerShell hash 只用于构建脚本文件 lineage，不替代 Rust 合同测试 |
 | Retry/backoff | 优先复用 SDK；否则在 API Task 中从 `tower` / `reqwest-retry` 选择 | 延后 | MIT | 不同请求的重试安全性不同，必须先定义幂等与预算，再启用成熟中间件 | 禁止手写通用 backoff；禁止对下单请求进行隐藏重试 |
 
 ## 3. Python 研究环境
@@ -97,6 +98,7 @@ Python 只用于数据处理、模型训练、校准和统计报告，不进入 
 | `clap` | `Cargo.lock` 当前解析为 `4.6.6` | `derive` | 最小 CLI、help 和 version |
 | `config` | `Cargo.lock` 当前解析为 `0.15.25` | `toml`，关闭 default features | TOML 与环境变量分层配置 |
 | `serde` | `Cargo.lock` 当前解析为 `1.0.229` | `derive` | 配置反序列化和后续领域类型序列化 |
+| `sha2` | `Cargo.lock` 当前解析为 `0.11.0` | default | final test membership SHA-256 commitment 与 release 校验 |
 | `sqlx` | `Cargo.lock` 当前解析为 `0.9.0` | `sqlite`、`runtime-tokio`、`macros`、`migrate`，关闭 default features | SQLite 连接池、查询和 embedded migration |
 | `tokio` | `Cargo.lock` 当前解析为 `1.53.1` | `macros`、`rt-multi-thread` | async runtime 与 CLI 入口 |
 | `tracing` | `Cargo.lock` 当前解析为 `0.1.44` | default | 结构化日志事件 |

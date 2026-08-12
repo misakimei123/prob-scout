@@ -44,6 +44,26 @@ _Avoid_: Competition string match
 一场完整 BO3/BO5 Event 的最终赛果记录。它保留赛前已知的 competition、region、Patch、Scheduled Start 和双方 Canonical Team，并在赛后补充完整比分与胜者；逐局结果不能伪装成 Series Result。
 _Avoid_: Game result, feature row
 
+**Feature Snapshot**:
+在固定赛前 cutoff 对一个 Event 生成的不可变特征集合；目标合同不包含该 Event 的比分、winner 或 market resolution，且每个历史特征都记录最新来源时间。
+_Avoid_: Current team stats, mutable feature row
+
+**Team Form Observation**:
+一支队伍在某个已完成 BO3/BO5 中形成的历史结果记录；只有完成时间不晚于目标 Feature Snapshot cutoff 时才能参与特征。未有时间化 identity evidence 时只按来源内精确 key 使用，不猜测跨名称合并。
+_Avoid_: Timeless team history, fuzzy historical identity
+
+**Temporal Split Manifest**:
+按互不重叠的半开 Event 时间窗口固定 train、validation、calibration 和 final test 归属的不可变合同；禁止随机打散和同一 series 跨集合。
+_Avoid_: Random split, row split
+
+**Final Test Seal**:
+调参阶段只公开 final test 的时间窗、数量和成员 SHA-256 commitment，不公开成员 ID；模型、配置与评估代码冻结后才允许显式 release。
+_Avoid_: Hidden flag, test set label
+
+**Data Quality Gate**:
+在模型开发前对 eligible series 数量、时间/赛区/Patch 覆盖、关键字段缺失、时间防泄漏、异常分布和历史市场真实性等级作出的可重复判定。`NotReadyForM3` 表示数据构建任务可以完成，但模型阶段仍被证据门禁阻塞。
+_Avoid_: Report completed, pipeline passed
+
 **Result Evidence**:
 证明 Series Result 最终比分与胜者的来源记录。当前使用 Leaguepedia `MatchSchedule` 的系列赛比分/胜者，并用 `ScoreboardGames` 校验逐局数量和 Patch；身份映射成功本身不构成 Result Evidence。
 _Avoid_: Identity mapping, market price

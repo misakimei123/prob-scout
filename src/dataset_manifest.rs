@@ -15,6 +15,8 @@ pub struct DatasetManifest {
     pub generated_at_utc: DateTime<Utc>,
     pub code: CodeProvenance,
     pub generator: GeneratorProvenance,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub upstream_datasets: Vec<UpstreamDataset>,
     pub raw_inputs: Vec<RawInput>,
     pub output: ProcessedOutput,
 }
@@ -42,6 +44,16 @@ pub struct CodeProvenance {
 pub struct GeneratorProvenance {
     pub entrypoint: String,
     pub arguments: Vec<String>,
+}
+
+/// processed-on-processed 依赖同时固定上游 manifest 和实际数据文件，避免只记录逻辑名称。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpstreamDataset {
+    pub manifest_relative_path: String,
+    pub manifest_sha256: String,
+    pub output_relative_path: String,
+    pub output_sha256: String,
 }
 
 /// processed dataset 直接依赖的不可变 raw 文件。
@@ -85,8 +97,9 @@ pub enum DatasetManifestError {
         field: &'static str,
         expected_root: Option<&'static str>,
     },
-    MissingRawInputs,
+    MissingInputs,
     DuplicateRawInputPath(String),
+    DuplicateUpstreamManifestPath(String),
     RawCapturedAfterGeneration(String),
     ZeroRowCount,
     InvalidTimeRange,
@@ -126,11 +139,14 @@ impl fmt::Display for DatasetManifestError {
                     "field must be a portable repository-relative path: {field}"
                 ),
             },
-            Self::MissingRawInputs => {
-                formatter.write_str("processed dataset must reference at least one raw input")
-            }
+            Self::MissingInputs => formatter.write_str(
+                "processed dataset must reference at least one raw input or upstream dataset",
+            ),
             Self::DuplicateRawInputPath(path) => {
                 write!(formatter, "raw input path is duplicated: {path}")
+            }
+            Self::DuplicateUpstreamManifestPath(path) => {
+                write!(formatter, "upstream dataset manifest is duplicated: {path}")
             }
             Self::RawCapturedAfterGeneration(path) => write!(
                 formatter,
@@ -175,8 +191,43 @@ impl DatasetManifest {
 
         validate_repo_relative_path("generator.entrypoint", &self.generator.entrypoint, None)?;
 
-        if self.raw_inputs.is_empty() {
-            return Err(DatasetManifestError::MissingRawInputs);
+        let mut upstream_manifest_paths = BTreeSet::new();
+        for upstream in &self.upstream_datasets {
+            validate_repo_relative_path(
+                "upstream_datasets.manifest_relative_path",
+                &upstream.manifest_relative_path,
+                Some("data/processed/"),
+            )?;
+            if !upstream.manifest_relative_path.ends_with(".manifest.json") {
+                return Err(DatasetManifestError::InvalidRepoPath {
+                    field: "upstream_datasets.manifest_relative_path",
+                    expected_root: Some("data/processed/"),
+                });
+            }
+            if !is_sha256(&upstream.manifest_sha256) {
+                return Err(DatasetManifestError::InvalidSha256(
+                    "upstream_datasets.manifest_sha256",
+                ));
+            }
+            validate_repo_relative_path(
+                "upstream_datasets.output_relative_path",
+                &upstream.output_relative_path,
+                Some("data/processed/"),
+            )?;
+            if !is_sha256(&upstream.output_sha256) {
+                return Err(DatasetManifestError::InvalidSha256(
+                    "upstream_datasets.output_sha256",
+                ));
+            }
+            if !upstream_manifest_paths.insert(upstream.manifest_relative_path.as_str()) {
+                return Err(DatasetManifestError::DuplicateUpstreamManifestPath(
+                    upstream.manifest_relative_path.clone(),
+                ));
+            }
+        }
+
+        if self.raw_inputs.is_empty() && self.upstream_datasets.is_empty() {
+            return Err(DatasetManifestError::MissingInputs);
         }
         let mut raw_paths = BTreeSet::new();
         for raw_input in &self.raw_inputs {
@@ -299,6 +350,7 @@ mod tests {
                 entrypoint: "research/build_series_dataset.ps1".to_owned(),
                 arguments: vec!["-Season".to_owned(), "2025".to_owned()],
             },
+            upstream_datasets: vec![],
             raw_inputs: vec![RawInput {
                 source: "oracles_elixir".to_owned(),
                 relative_path: "data/raw/oracles_elixir/source/2025.csv".to_owned(),
@@ -330,8 +382,24 @@ mod tests {
 
         assert_eq!(
             manifest.validate(),
-            Err(DatasetManifestError::MissingRawInputs)
+            Err(DatasetManifestError::MissingInputs)
         );
+    }
+
+    #[test]
+    fn accepts_processed_dataset_with_only_an_upstream_dataset() {
+        let mut manifest = valid_manifest();
+        manifest.raw_inputs.clear();
+        manifest.upstream_datasets.push(UpstreamDataset {
+            manifest_relative_path:
+                "data/processed/lol-prematch-features/v1/features.json.manifest.json".to_owned(),
+            manifest_sha256: "c".repeat(64),
+            output_relative_path: "data/processed/lol-prematch-features/v1/features.json"
+                .to_owned(),
+            output_sha256: "d".repeat(64),
+        });
+
+        assert_eq!(manifest.validate(), Ok(()));
     }
 
     #[test]
@@ -383,6 +451,47 @@ mod tests {
             Err(DatasetManifestError::DuplicateRawInputPath(
                 "data/raw/oracles_elixir/source/2025.csv".to_owned()
             ))
+        );
+    }
+
+    #[test]
+    fn accepts_traceable_upstream_dataset_and_rejects_duplicate_manifest() {
+        let mut manifest = valid_manifest();
+        let upstream = UpstreamDataset {
+            manifest_relative_path: "data/processed/lol-series-results/v1/series.csv.manifest.json"
+                .to_owned(),
+            manifest_sha256: "c".repeat(64),
+            output_relative_path: "data/processed/lol-series-results/v1/series.csv".to_owned(),
+            output_sha256: "d".repeat(64),
+        };
+        manifest.upstream_datasets.push(upstream.clone());
+        assert_eq!(manifest.validate(), Ok(()));
+
+        manifest.upstream_datasets.push(upstream.clone());
+        assert_eq!(
+            manifest.validate(),
+            Err(DatasetManifestError::DuplicateUpstreamManifestPath(
+                upstream.manifest_relative_path
+            ))
+        );
+    }
+
+    #[test]
+    fn rejects_upstream_dataset_outside_processed_root() {
+        let mut manifest = valid_manifest();
+        manifest.upstream_datasets.push(UpstreamDataset {
+            manifest_relative_path: "data/raw/series.csv.manifest.json".to_owned(),
+            manifest_sha256: "c".repeat(64),
+            output_relative_path: "data/processed/lol-series-results/v1/series.csv".to_owned(),
+            output_sha256: "d".repeat(64),
+        });
+
+        assert_eq!(
+            manifest.validate(),
+            Err(DatasetManifestError::InvalidRepoPath {
+                field: "upstream_datasets.manifest_relative_path",
+                expected_root: Some("data/processed/"),
+            })
         );
     }
 

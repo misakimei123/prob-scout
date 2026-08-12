@@ -31,3 +31,23 @@ M1 只以 `Conditional Go` 进入后续 Grade C 信号研究。原因是 50 场�
 ## 2026-08-12 — Series Result 与 Market Resolution 双证据
 
 系列赛 label 只在 Leaguepedia `MatchSchedule` 最终比分/胜者与 Gamma 已关闭、resolved、唯一 0/1 outcome 结算指向同一 Canonical Team 时成立。原因是身份 mapping 只证明“这是同一场/同一队”，不证明结果或市场 outcome label 正确；影响是任一来源未完成、字段缺失或胜者冲突都 fail closed。重复 `series_id` 仅在核心事实完全相同才按证据键字典序合并，否则整组拒绝。
+
+## 2026-08-12 — T-15m Feature Snapshot 与来源内历史 identity
+
+HIST-004 固定在 Scheduled Start 前 15 分钟生成 Feature Snapshot，历史 series 只有最后一局结束时间不晚于 cutoff 才可进入特征；目标类型不接收比分、winner 或 market resolution。当前 HIST-002 证据不能把 2026-08 审核时点的 Canonical Team identity 外推 180 天，因此历史 form 只按 Leaguepedia 精确 source key 统计，名称变化默认损失召回而不猜测合并。影响是每个特征必须保存最新来源时间，未来补 rename 历史时必须先增加 time-bounded identity evidence。
+
+## 2026-08-12 — Manifest v1 记录上游 processed dataset
+
+processed dataset 消费另一个 processed dataset 时，使用可选 `upstream_datasets` 同时固定上游 manifest 与 output 的路径和 SHA-256；原始 API 响应仍进入 `raw_inputs`。原因是 HIST-004 直接消费 HIST-003，若只记录底层 raw 或生成参数会丢失实际中间数据版本。该字段对旧 manifest 默认空列表，保持 v1 向后兼容。
+
+## 2026-08-12 — 连续时间划分与 Final Test Seal
+
+HIST-005 使用按 Scheduled Start 的连续半开 UTC 窗口，顺序固定为 train、validation、calibration、final test；同一 series 唯一命中一个集合，禁止随机打散、窗口间隙和重叠。调参 manifest 不包含 final test IDs，只保存 count、window 和对规范排序成员的 SHA-256 commitment；release 必须提供冻结的 model artifact、model config 和 evaluation code hash，并重新核对 source membership。原因是仅用布尔标记无法防止标准训练流程意外读取 final test；影响是 M3 的开发入口只能读取前三组，MODEL-007 才能走显式 release。seal 是工作流门禁，不是对原始数据读取者的加密保密。
+
+## 2026-08-12 — Processed-only lineage 允许空 raw_inputs
+
+Dataset Manifest v1 在 `upstream_datasets` 非空时允许 `raw_inputs=[]`，但两者不能同时为空。原因是 HIST-005 只消费 HIST-004 processed output，没有新的直接 raw source；复制上游 raw list 会把间接依赖错误声明为直接依赖。旧 manifest 的 raw-only 路径保持兼容。
+
+## 2026-08-12 — M2 数据质量 Gate 为 NotReadyForM3
+
+HIST-006 的构建任务已完成，但数据就绪 Gate 明确为 `NotReadyForM3`。原因是当前只有 23/500 eligible series，覆盖 4 个 UTC 日期、1 个年份和单一 Patch `26.15`；虽然必填字段、跨数据集成员、时间防泄漏和 split commitment 均通过，DATA-009 的 50 个市场仍全部为 Grade C。影响是 MODEL-001 继续被阻塞，下一步必须扩展多时间段、多 Patch 的不可变历史语料并重跑 HIST-002–HIST-006；不得把任务勾选、低缺失率或 pipeline 测试通过解释为模型证据。

@@ -53,6 +53,14 @@ Rust 合同位于 [`src/dataset_manifest.rs`](../src/dataset_manifest.rs)。所�
     "entrypoint": "research/build_series_dataset.ps1",
     "arguments": ["-Season", "2025"]
   },
+  "upstream_datasets": [
+    {
+      "manifest_relative_path": "data/processed/lol-series-results/v1/series.csv.manifest.json",
+      "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "output_relative_path": "data/processed/lol-series-results/v1/series.csv",
+      "output_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+    }
+  ],
   "raw_inputs": [
     {
       "source": "oracles_elixir",
@@ -84,7 +92,8 @@ Rust 合同位于 [`src/dataset_manifest.rs`](../src/dataset_manifest.rs)。所�
 | `code.dirty` | 生成时工作区是否有未提交改动 |
 | `code.diff_sha256` | dirty 时必须记录生成前完整 diff 的 SHA-256；clean 时必须为 `null` |
 | `generator.entrypoint/arguments` | 实际生成入口的仓库相对路径和参数；不得写个人绝对路径 |
-| `raw_inputs[]` | 至少一个 `data/raw/` 文件；逐项保存 source、路径、SHA-256 和采集时间 |
+| `upstream_datasets[]` | 可选；processed-on-processed 时固定上游 manifest 与 output 的仓库相对路径和 SHA-256 |
+| `raw_inputs[]` | 直接消费的 `data/raw/` 文件；逐项保存 source、路径、SHA-256 和采集时间。只有上游 processed dataset 时可以为空 |
 | `output` | 必须位于 `data/processed/`，保存内容 SHA-256、正 row count 和 Event UTC 时间范围 |
 
 ## 3. 生成顺序
@@ -106,7 +115,8 @@ manifest 证明“使用了哪些字节和代码”，不证明业务内容正�
 
 - 未知 manifest 版本、空字段或不安全的数据集目录名；
 - 非仓库相对路径、Windows 反斜杠、绝对路径和 `..`；
-- 缺少 raw 输入、重复 raw 路径或 raw 路径越出 `data/raw/`；
+- 同时缺少 raw input 与 upstream dataset、重复 raw 路径或 raw 路径越出 `data/raw/`；
+- 上游 dataset 路径越出 `data/processed/`、manifest 后缀无效、hash 无效或 manifest 重复；
 - 非小写 SHA-256、无效 Git hash、dirty 但缺少 diff hash；
 - raw 采集时间晚于 dataset 生成时间；
 - output 越出 `data/processed/`、row count 为零或 Event 时间范围倒置。

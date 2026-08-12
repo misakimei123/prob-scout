@@ -240,29 +240,34 @@ M1 结论：`Conditional Go`。允许进入 M2/M3 的 Grade C 信号研究；不
 - 验收：BO3/BO5、赛区、Patch、时间、双方和胜者字段完整；重复事件有确定性处理规则。
 - 证据：2026-08-12 新增 `src/series_result.rs`、`research/build_series_result_dataset.ps1`、`src/bin/validate_dataset_manifest.rs` 与 `docs/SERIES_RESULT_DATASET.md`，并在 `CONTEXT.md` 固化 `Series Result`、`Result Evidence`、`Market Resolution Evidence`。固定 DATA-008 50 场中仅消费 29 个 `Matched`，排除 21 个 `NeedsReview` 和 6 个 BO1，生成 23 行（BO3 21、BO5 2），6 个赛区、Patch/时间/双方/比分/winner 必填缺失均为 0。Leaguepedia series winner 与 Gamma `closed + resolved + 0/1 outcomePrices` 的市场结算 23/23 一致；dataset SHA-256 为 `04ba36d93f8560d9d0ece628cc372ebcebac58f70e71e7674eb37fb25db9bf95`，Manifest v1 Rust 校验通过。重复 series 按证据键字典序稳定选主记录，核心事实冲突 fail closed；5 个定向测试覆盖 BO/比分、winner-resolution 冲突、顺序无关合并和冲突拒绝。`cargo fmt --check`、`cargo check --locked`、全库 40 个 library tests、validator binary test 与 `git diff --check` 通过。
 
-### [ ] HIST-004 生成赛前特征快照
+### [x] HIST-004 生成赛前特征快照
 
 - 依赖：HIST-003
 - 输出：只使用比赛开始前数据计算的基础特征。
 - 验收：每个特征有来源时间；测试能够证明赛后记录不会影响早期比赛特征。
+- 证据：2026-08-12 新增 `src/prematch_features.rs`、`src/bin/build_prematch_feature_snapshots.rs`、`research/build_prematch_feature_dataset.ps1` 与 `docs/PREMATCH_FEATURE_DATASET.md`。目标合同类型层面排除比分、winner 和 market resolution；固定 `T-15m`，历史可用时间取最后一局 `DateTime_UTC + Gamelength_Number`，每个 count/ratio/rest 特征保存最新来源时间。5 个定向测试覆盖 cutoff、来源时间、缺失历史、重复/无效记录、拒绝目标赛后字段，并证明追加目标自身赛后结果不改变早期快照。真实 180 天构建读取 1,761 行、形成 855 个 team observations，16 个不完整 series fail closed 排除，生成 23/23 快照且来源时间违规为 0；dataset SHA-256 为 `f13e74dd8c3b28d888075ad4fb6ac4616aa34c6c62049e7f4db323e31a76a2fb`。历史身份只按 Leaguepedia 精确 source key，不外推 Canonical identity；Manifest v1 固定 HIST-003 上游 manifest/output hash。`cargo fmt --check`、`cargo check --locked`、全库 47 个 library tests、两个 binary tests、真实 manifest Rust 校验与 `git diff --check` 通过。
 
-### [ ] HIST-005 按时间划分数据
+### [x] HIST-005 按时间划分数据
 
 - 依赖：HIST-004
 - 输出：train、validation、calibration、final test manifest。
 - 验收：时间区间不重叠；同一系列赛不跨集合；final test 在调参期间不可使用。
+- 证据：2026-08-12 新增 `src/temporal_split.rs`、`src/bin/build_temporal_split_manifest.rs`、`research/build_temporal_split_dataset.ps1` 与 `docs/TEMPORAL_SPLIT_DATASET.md`，并引入 RustCrypto `sha2 0.11.0`。四组使用连续半开 UTC 窗口，重复 ID、间隙、重叠、空集合和边界外 series 全部 fail closed；构建入口只读取 `series_id + scheduled_start_utc`。调参 manifest 只公开 train/validation/calibration IDs，final test 只保存 count、window 和 membership SHA-256，显式 release 需要冻结 model artifact/config/evaluation code 三个 hash 并重新核对 source commitment。真实 23 场按完整 UTC 日期划为 3/7/6/7，覆盖 23/23、无 series 重复或跨集合，final test JSON 无 `series_ids`；dataset SHA-256 为 `fefdb5ec783d12d73721f0fe05f71cc6ccfd6aefa56c588d372bc24c84f8cb1d`。6 个定向测试、全库 54 个 library tests、三个 binary tests、`cargo fmt --check`、`cargo check --locked`、真实 manifest Rust 校验、缓存重放和 `git diff --check` 通过。
 
-### [ ] HIST-006 输出数据质量报告
+### [x] HIST-006 输出数据质量报告
 
 - 依赖：HIST-005
 - 输出：缺失率、覆盖年份、赛区、Patch 和异常值摘要。
 - 验收：每个缺失关键字段都有排除或降级规则；报告能重复生成。
+- 证据：2026-08-12 新增 `src/data_quality.rs`、`src/bin/build_data_quality_report.rs`、`research/build_data_quality_report.ps1` 与 `docs/DATA_QUALITY_REPORT.md`。真实报告覆盖 HIST-003/004/005 的 23 个 series：必填 Series/Feature 缺失为 0，晚于 `T-15m` cutoff 的 source time 为 0，跨数据集成员和 final test commitment 重建一致；时间只覆盖 4 个 UTC 日期、1 个年份、单一 Patch `26.15`，6 个赛区。Same-Patch history 缺失 3/46（6.52%）按合同保留并降级，不伪造 0% 胜率；DATA-009 execution-grade snapshot 缺失 50/50，全部 Grade C。IQR 标记 same-Patch count 4 个、rest 2 个，只进入 review。报告版本 `2026-08-12.e678afb.hist006-v4` SHA-256 为 `eddd8534144ffdcd9a1ec0a15052395922a7c3675ede12dc768af1982f8a86a2`，相同输入双构建 hash 一致；M2 Gate 明确为 `NotReadyForM3`。
 
 ### M2 完成检查（历史数据就绪）
 
-- [ ] 至少500场 eligible series，或明确记录不足原因。
-- [ ] 时间防泄漏测试通过。
-- [ ] 数据集可由脚本从 raw 数据重复生成。
+- [x] 至少500场 eligible series，或明确记录不足原因：当前仅 23/500，来源于固定 DATA-008 的 50 个市场中 29 个 `Matched` 再排除 6 个 BO1；不足原因和扩展路径已记录。
+- [x] 时间防泄漏测试通过：46 个 team-side feature source time 均不晚于 `T-15m`，追加赛后数据不会改变早期快照。
+- [x] 数据集可由脚本从 raw/upstream manifest 重复生成：HIST-006 同输入连续生成两次，报告 SHA-256 一致。
+
+M2 完成检查的证据项已闭合，但 Gate 判定为 `NotReadyForM3`：23 场、4 个 UTC 日期、单一 Patch 无法支持模型开发与 final test 结论。不得因任务勾选完成而进入 MODEL-001；须先扩展多时间段、多 Patch 的 eligible series 并重跑 M2 Gate。
 
 ## 7. M3：概率模型
 
@@ -565,5 +570,8 @@ M1 结论：`Conditional Go`。允许进入 M2/M3 的 Grade C 信号研究；不
 17. `HIST-001`：已完成 raw/processed/artifact 目录与 Dataset Manifest v1，可从 processed output 回溯 raw hash、生成时间和代码版本。
 18. `HIST-002`：已完成时间化队伍/赛事身份合同、SQLite schema 与 50 场显式映射审核；未观察到可审核的真实改名区间。
 19. `HIST-003`：已生成 23 行可追溯 BO3/BO5 series result；21 个 `NeedsReview` 和 6 个 BO1 明确排除，23/23 winner/resolution 一致。
+20. `HIST-004`：已生成固定 `T-15m` 的 23 行赛前特征快照；每个基础特征带最新来源时间，目标赛后字段被类型合同拒绝，晚于 cutoff 的历史记录不会改变快照。
+21. `HIST-005`：已按连续 UTC 日期窗口固定 train/validation/calibration/final test 为 3/7/6/7；final test 在调参 manifest 中只发布 count 与 membership commitment。
+22. `HIST-006`：已生成可重复的数据质量报告；M2 Gate 为 `NotReadyForM3`，原因是仅 23/500、4 个 UTC 日期和单一 Patch，且市场证据 50/50 为 Grade C。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 已完成 `HIST-001`–`HIST-003`。下一步为 `HIST-004`，本轮未提前实现。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-006` 均已实现并记录证据，但数据就绪 Gate 为 `NotReadyForM3`。下一步不是 `MODEL-001`，而是扩展多时间段、多 Patch 的历史 eligible series 至至少 500，并重建 HIST-002–HIST-006 后复审 M2 Gate。
