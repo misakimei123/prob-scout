@@ -15,9 +15,12 @@
 - M1：`DATA-008` 50 场人工映射核验；29 个自动 `Matched` 无错误，21 个时间冲突正确升级。
 - M1：`DATA-009` 历史市场数据等级调查；固定 50 场 A 0、B 0、C 50，100 个 outcome token 的官方 `{t,p}` history 可离线重放。
 - M1：`DATA-010` Gate 0 决策为 `Conditional Go`；允许 Grade C 信号研究，持续实时盘口和 WebSocket 稳定性未验证。
+- M2：`HIST-001` 三层本地数据目录和 Dataset Manifest v1；processed dataset 可追溯 raw hash、生成时间与代码版本。
+- M2：`HIST-002` 时间化 Canonical Team/Competition identity registry；12 组显式队名变体和 21 组赛事映射可回溯，未知/歧义 fail closed。
+- M2：`HIST-003` 23 行 BO3/BO5 Series Result；Leaguepedia 最终赛果与 Gamma market resolution 独立核对，确定性去重与 Manifest v1 可复现。
 
 ## 待完成
 
-- M2：下一任务 `HIST-001`；M2–M6 尚未开始，M7 GPT 增强延后。
+- M2：下一任务 `HIST-004`；M3–M6 尚未开始，M7 GPT 增强延后。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。

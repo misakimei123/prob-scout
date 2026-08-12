@@ -19,3 +19,15 @@ Leaguepedia `Scheduled Start`、Gamma `Market End` 与 CLOB `Game Start` 分别�
 ## 2026-08-12 — Gate 0 Conditional Go
 
 M1 只以 `Conditional Go` 进入后续 Grade C 信号研究。原因是 50 场映射中 29 个自动 `Matched` 无观察错误、全部市场有双方历史 `{t,p}`，且单个开放市场的完整 REST order book 可读取和离线重放；反面证据是 21 场仍需人工复核、历史数据全部为 Grade C，且尚无 WebSocket 或持续实时采集稳定性验证。影响是 M2/M3 可继续，但 unresolved mapping 必须排除或解决，历史结果不得声称可成交 PnL，任何 execution-sensitive 结论前必须补足多市场持续 order book、fee、时间戳、重连和离线重放证据。
+
+## 2026-08-12 — 三层数据目录与 Dataset Manifest v1
+
+本地研究数据固定分为不可变 `data/raw/`、可重建 `data/processed/` 和派生 `artifacts/`。每个 processed dataset 必须用 Manifest v1 记录 raw 文件 SHA-256/采集时间、UTC 生成时间、Git commit 与 dirty diff hash、生成入口、输出 hash、row count 和 Event 时间范围。原因是后续队伍身份、结果、特征和数据划分必须能够回到实际输入字节与代码版本；影响是缺失 lineage、路径越界、hash/时间无效或零行的输出都不是有效 dataset。
+
+## 2026-08-12 — 时间化显式身份解析
+
+队伍和赛事品牌身份采用带来源与半开有效区间的显式映射。source ID 存在时只按 ID 解析，未知 ID 不回退名称；没有 ID 时才使用已登记的 source/name/time。原因是改名、名称复用、二队关系和来源修订会让无时间 alias 或 fuzzy match 静默合并不同实体；影响是 `Missing`/`Ambiguous` 必须人工处理或排除，且赛事品牌、赛季阶段与单场 Event 保持分离。
+
+## 2026-08-12 — Series Result 与 Market Resolution 双证据
+
+系列赛 label 只在 Leaguepedia `MatchSchedule` 最终比分/胜者与 Gamma 已关闭、resolved、唯一 0/1 outcome 结算指向同一 Canonical Team 时成立。原因是身份 mapping 只证明“这是同一场/同一队”，不证明结果或市场 outcome label 正确；影响是任一来源未完成、字段缺失或胜者冲突都 fail closed。重复 `series_id` 仅在核心事实完全相同才按证据键字典序合并，否则整组拒绝。

@@ -1,0 +1,22 @@
+canonical_competition_id,gamma_competition_name,leaguepedia_competition_id,evidence_review_ids,review_status
+lol-competition:arabian-league,Arabian League Group Stage,Arabian League/2026 Season/Summer Split,04;09,verified_explicit
+lol-competition:cblol,CBLOL Regular Season,CBLOL/2026 Season/Split 2,15;16;29;31;47;48,verified_explicit
+lol-competition:circuito-desafiante,Circuito Desafiante Play-In,Circuito Desafiante/2026 Season/Split 2,01;02,verified_explicit
+lol-competition:hitpoint-masters,Hitpoint Masters Regular Season,Hitpoint Masters/2026 Season/Summer Split,08;12,verified_explicit
+lol-competition:kespa-cup,KeSPA Cup Last Chance Qualifier,2026 LoL KeSPA Cup,22;24;26,verified_explicit
+lol-competition:kespa-cup,KeSPA Cup Playoffs,2026 LoL KeSPA Cup,13,verified_explicit
+lol-competition:lck-cl,LCK Challengers League Rounds 3-4 Challenge Group,LCK CL/2026 Season/Rounds 3-4,25,verified_explicit
+lol-competition:lck-cl,LCK Challengers League Rounds 3-4 Trial Group,LCK CL/2026 Season/Rounds 3-4,23,verified_explicit
+lol-competition:lck,LCK Round 3-4 Legend Group,LCK/2026 Season/Rounds 3-4,42,verified_explicit
+lol-competition:lck,LCK Round 3-4 Rise Group,LCK/2026 Season/Rounds 3-4,38,verified_explicit
+lol-competition:lcp,LCP Group Stage,LCP/2026 Season/Split 3,41,verified_explicit
+lol-competition:lcs,LCS Regular Season,LCS/2026 Season/Summer Season,27;28;44;45,verified_explicit
+lol-competition:lec,LEC Regular Season,LEC/2026 Season/Summer Season,19;21;30;32;46;49,verified_explicit
+lol-competition:ljl,LJL Playoffs,LJL/2026 Season/Summer Championship,14,verified_explicit
+lol-competition:lpl,LPL Group Ascend,LPL/2026 Season/Split 3,36;40,verified_explicit
+lol-competition:lpl,LPL Group Nirvana,LPL/2026 Season/Split 3,43,verified_explicit
+lol-competition:nexus-league,Nexus League Regular Season,Nexus League/2026 Season/Summer Split,33;34;35;37;39;50,verified_explicit
+lol-competition:nlc,NLC Regular Season,NLC/2026 Season/Summer Split,17;18;20,verified_explicit
+lol-competition:prime-league,Prime League 1st Division Group B,Prime League 1st Division/2026 Season/Summer Split,06;11,verified_explicit
+lol-competition:rift-legends,Rift Legends Regular Season,Rift Legends/2026 Season/Summer Split,03;10,verified_explicit
+lol-competition:road-of-legends,Road Of Legends Regular Season,Road Of Legends/2026 Season/Summer Split,05;07,verified_explicit

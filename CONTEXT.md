@@ -24,6 +24,34 @@ _Avoid_: Event alias
 某数据源中的队伍 ID 与原始名称到 ProbScout 内部队伍身份的显式对应关系。
 _Avoid_: Fuzzy team match
 
+**Canonical Team**:
+跨数据源保持稳定的队伍身份；只有证据明确的名称变体或改名才共享身份，二队、青训队和无法确认的所有权变更默认独立。
+_Avoid_: Normalized team name, team string
+
+**Team Identity Period**:
+某个 Team Alias 在明确时间区间内指向一个 Canonical Team 的来源证据；区间外、缺失或同时指向多个身份时均不解析。
+_Avoid_: Timeless alias, fuzzy identity
+
+**Canonical Competition**:
+跨数据源保持稳定的联赛或杯赛品牌身份；赛季、阶段和单场系列赛不是新的 Canonical Competition。
+_Avoid_: Event, tournament label
+
+**Competition Identity Period**:
+某数据源的联赛或杯赛标识及名称在明确时间区间内指向一个 Canonical Competition 的来源证据。
+_Avoid_: Competition string match
+
+**Series Result**:
+一场完整 BO3/BO5 Event 的最终赛果记录。它保留赛前已知的 competition、region、Patch、Scheduled Start 和双方 Canonical Team，并在赛后补充完整比分与胜者；逐局结果不能伪装成 Series Result。
+_Avoid_: Game result, feature row
+
+**Result Evidence**:
+证明 Series Result 最终比分与胜者的来源记录。当前使用 Leaguepedia `MatchSchedule` 的系列赛比分/胜者，并用 `ScoreboardGames` 校验逐局数量和 Patch；身份映射成功本身不构成 Result Evidence。
+_Avoid_: Identity mapping, market price
+
+**Market Resolution Evidence**:
+独立证明 Match Winner 市场最终结算 outcome 的来源记录。它必须明确市场已关闭并 resolved，且唯一获胜 outcome 对应的 Canonical Team 与 Series Result 胜者一致。
+_Avoid_: Last traded price, identity mapping
+
 **Market Mapping**:
 一个 Event 与一个 Polymarket Match Winner 市场及其有序 outcome/token 的可追溯关联。
 _Avoid_: Market match

@@ -2,9 +2,12 @@
 
 pub mod candidate_matching;
 pub mod config;
+pub mod dataset_manifest;
 pub mod db;
 pub mod event_mapping;
+pub mod identity_registry;
 pub mod logging;
+pub mod series_result;
 
 /// 程序名称直接取自 Cargo package，避免 CLI 与构建元数据出现不同名称。
 pub const APP_NAME: &str = env!("CARGO_PKG_NAME");

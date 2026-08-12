@@ -110,8 +110,109 @@ INSERT INTO source_records (
             .expect("应能读取 SQLx migration 记录");
 
         assert_eq!(content_hash, "sha256:test");
-        assert_eq!(migration_count, 2);
+        assert_eq!(migration_count, 3);
         reopened_pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn stores_temporal_team_and_competition_identities() {
+        let directory = tempdir().expect("应能创建临时数据库目录");
+        let pool = connect(&directory.path().join("identities.db"))
+            .await
+            .expect("身份数据库应完成 migration");
+
+        sqlx::query(
+            r#"
+INSERT INTO canonical_teams (canonical_team_id, canonical_name, created_at_utc)
+VALUES (?, ?, ?)
+"#,
+        )
+        .bind("lol-team:los")
+        .bind("LOS")
+        .bind("2026-08-12T00:00:00Z")
+        .execute(&pool)
+        .await
+        .expect("Canonical Team 应可写入");
+        sqlx::query(
+            r#"
+INSERT INTO team_identity_periods (
+    canonical_team_id, source_name, source_team_id, observed_name, normalized_name,
+    valid_from_utc, valid_until_utc, evidence_ref
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+"#,
+        )
+        .bind("lol-team:los")
+        .bind("leaguepedia")
+        .bind(Option::<String>::None)
+        .bind("LØS")
+        .bind("løs")
+        .bind("2026-08-08T00:00:00Z")
+        .bind("2026-08-11T00:00:00Z")
+        .bind("DATA-008:15,47")
+        .execute(&pool)
+        .await
+        .expect("时间化 Team Alias 应可写入");
+
+        sqlx::query(
+            r#"
+INSERT INTO canonical_competitions (
+    canonical_competition_id, canonical_name, created_at_utc
+) VALUES (?, ?, ?)
+"#,
+        )
+        .bind("lol-competition:cblol")
+        .bind("CBLOL")
+        .bind("2026-08-12T00:00:00Z")
+        .execute(&pool)
+        .await
+        .expect("Canonical Competition 应可写入");
+        sqlx::query(
+            r#"
+INSERT INTO competition_identity_periods (
+    canonical_competition_id, source_name, source_competition_id, observed_name,
+    normalized_name, valid_from_utc, valid_until_utc, evidence_ref
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+"#,
+        )
+        .bind("lol-competition:cblol")
+        .bind("leaguepedia")
+        .bind("CBLOL/2026 Season/Split 2")
+        .bind("CBLOL/2026 Season/Split 2")
+        .bind("cblol2026seasonsplit2")
+        .bind("2026-01-01T00:00:00Z")
+        .bind("2027-01-01T00:00:00Z")
+        .bind("DATA-008:15")
+        .execute(&pool)
+        .await
+        .expect("赛事品牌来源身份应可写入");
+
+        let team_identity: (String, String, String) = sqlx::query_as(
+            r#"
+SELECT canonical_team_id, observed_name, evidence_ref
+FROM team_identity_periods
+WHERE source_name = 'leaguepedia' AND normalized_name = 'løs'
+"#,
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("应能按来源名称读取队伍身份期");
+        let competition_identity: String = sqlx::query_scalar(
+            r#"
+SELECT canonical_competition_id
+FROM competition_identity_periods
+WHERE source_name = 'leaguepedia' AND source_competition_id = ?
+"#,
+        )
+        .bind("CBLOL/2026 Season/Split 2")
+        .fetch_one(&pool)
+        .await
+        .expect("应能按来源赛事 ID 读取赛事身份期");
+
+        assert_eq!(team_identity.0, "lol-team:los");
+        assert_eq!(team_identity.1, "LØS");
+        assert_eq!(team_identity.2, "DATA-008:15,47");
+        assert_eq!(competition_identity, "lol-competition:cblol");
+        pool.close().await;
     }
 
     #[tokio::test]

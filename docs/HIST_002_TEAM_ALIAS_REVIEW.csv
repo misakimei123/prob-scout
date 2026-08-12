@@ -1,0 +1,13 @@
+canonical_team_id,gamma_name,leaguepedia_name,evidence_review_ids,relation_type,review_status
+lol-team:barczaca-esports,Barcząca Esports,Barcząca Esports by Yumisu,10,name_variant,verified_explicit
+lol-team:crystal-rose,Crystal Rose,Crystal Rose (French Team),39;50,disambiguation_suffix,verified_explicit
+lol-team:devils-one,devils.one,devils.one inStreamly,10,sponsor_suffix,verified_explicit
+lol-team:forsaken,Forsaken,Forsaken (Polish Team),03,disambiguation_suffix,verified_explicit
+lol-team:furia-esports,FURIA Esports,FURIA,29,name_variant,verified_explicit
+lol-team:leviatan-esports,Leviatan Esports,Leviatan,16;47,name_variant,verified_explicit
+lol-team:lodis,Lodis,LODIS (Polish Team),03,disambiguation_suffix,verified_explicit
+lol-team:los,LOS,LØS,15;47,orthographic_variant,verified_explicit
+lol-team:lyon,LYON,LYON (2024 American Team),28,disambiguation_suffix,verified_explicit
+lol-team:senshi-esports-club,Senshi Esports Club,Senshi eSports (Benelux Team),05,disambiguation_suffix,verified_explicit
+lol-team:team-solid,Team Solid,Team Solid (Brazilian Team),02,disambiguation_suffix,verified_explicit
+lol-team:the-ruddy-sack,The Ruddy Sack,Ruddy Corporation,20,verified_identity_link,verified_explicit

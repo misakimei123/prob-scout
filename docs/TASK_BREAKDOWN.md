@@ -219,23 +219,26 @@ M1 结论：`Conditional Go`。允许进入 M2/M3 的 Grade C 信号研究；不
 
 目标：生成不会使用未来信息、能够重复构建的赛前系列赛数据集。
 
-### [ ] HIST-001 定义 raw/processed/artifact 目录
+### [x] HIST-001 定义 raw/processed/artifact 目录
 
 - 依赖：M1 Gate（Gate 0）
 - 输出：数据目录和 manifest 格式。
 - 验收：每个 processed dataset 能追溯 raw 文件 hash、生成时间和代码版本。
+- 证据：2026-08-12 新增 `research/initialize_dataset_layout.ps1`、`src/dataset_manifest.rs` 和 `docs/DATASET_LAYOUT.md`；幂等建立 Git 忽略的 `data/raw/`、`data/processed/`、`artifacts/` 三层目录，并定义 Dataset Manifest v1。每个 processed dataset 强制记录至少一个 raw source/path/SHA-256/captured time、UTC 生成时间、完整 Git commit、dirty diff SHA-256、生成入口与参数，以及 output path/hash/正 row count/Event 时间范围；未知版本、不安全或越界路径、重复 raw、时间倒置等均 fail closed。脚本连续运行两次均确认 3/3 目录存在且被 ignore；8 个 manifest 定向测试、`cargo fmt --check`、`cargo check --locked`、全库 27 个 library tests 与 `git diff --check` 通过。
 
-### [ ] HIST-002 统一队伍和赛事身份
+### [x] HIST-002 统一队伍和赛事身份
 
 - 依赖：HIST-001、DATA-006
 - 输出：队伍别名、改名和赛事映射表。
 - 验收：同一时期同一队伍不会因名称变体拆成多个实体；无法确认的记录不静默合并。
+- 证据：2026-08-12 新增 `src/identity_registry.rs`、`migrations/202608120003_create_identity_registry.sql`、`docs/HIST_002_TEAM_ALIAS_REVIEW.csv`、`docs/HIST_002_COMPETITION_MAPPING.csv` 和 `docs/IDENTITY_REGISTRY.md`，并在 `CONTEXT.md` 固化 `Canonical Team`、`Team Identity Period`、`Canonical Competition` 与 `Competition Identity Period`。50/50 场赛事品牌证据汇总为 21 个跨来源 label mapping、17 个 canonical competitions；12 组基础规范化无法对齐的队名均为人工 `verified_explicit`。本批没有可审核改名生效区间，故 verified rename periods 明确为 0，未虚构改名。解析按 source ID 优先且不回退名称；缺失、区间外或多候选返回 `Missing`/`Ambiguous`。7 个身份定向测试覆盖时间化改名 fixture、真实 `LOS`/`LØS`、未知 source ID、名称复用歧义、赛事/Event 分离与 33 行审核表重放；SQLite 持久化测试、`cargo fmt --check`、`cargo check --locked`、全库 35 个 library tests 与 `git diff --check` 通过。
 
-### [ ] HIST-003 生成系列赛结果数据集
+### [x] HIST-003 生成系列赛结果数据集
 
 - 依赖：HIST-002
 - 输出：每行一场 series 的赛前记录和最终结果。
 - 验收：BO3/BO5、赛区、Patch、时间、双方和胜者字段完整；重复事件有确定性处理规则。
+- 证据：2026-08-12 新增 `src/series_result.rs`、`research/build_series_result_dataset.ps1`、`src/bin/validate_dataset_manifest.rs` 与 `docs/SERIES_RESULT_DATASET.md`，并在 `CONTEXT.md` 固化 `Series Result`、`Result Evidence`、`Market Resolution Evidence`。固定 DATA-008 50 场中仅消费 29 个 `Matched`，排除 21 个 `NeedsReview` 和 6 个 BO1，生成 23 行（BO3 21、BO5 2），6 个赛区、Patch/时间/双方/比分/winner 必填缺失均为 0。Leaguepedia series winner 与 Gamma `closed + resolved + 0/1 outcomePrices` 的市场结算 23/23 一致；dataset SHA-256 为 `04ba36d93f8560d9d0ece628cc372ebcebac58f70e71e7674eb37fb25db9bf95`，Manifest v1 Rust 校验通过。重复 series 按证据键字典序稳定选主记录，核心事实冲突 fail closed；5 个定向测试覆盖 BO/比分、winner-resolution 冲突、顺序无关合并和冲突拒绝。`cargo fmt --check`、`cargo check --locked`、全库 40 个 library tests、validator binary test 与 `git diff --check` 通过。
 
 ### [ ] HIST-004 生成赛前特征快照
 
@@ -559,6 +562,8 @@ M1 结论：`Conditional Go`。允许进入 M2/M3 的 Grade C 信号研究；不
 14. `DATA-008`：已完成人工核验 50 场映射；29 个自动 `Matched` 无错误，21 个时间冲突正确进入 `NeedsReview`。
 15. `DATA-009`：已完成历史市场数据 Grade A/B/C 调查；固定 50 场全部只有 `{t,p}` price history，均为 Grade C。
 16. `DATA-010`：已完成 Gate 0 决策，结论为 `Conditional Go`；只允许 Grade C 信号研究，实时订单簿持续稳定性仍是未关闭条件。
-17. `HIST-001`：下一任务，定义 raw/processed/artifact 目录与可追溯 manifest；本轮未开始。
+17. `HIST-001`：已完成 raw/processed/artifact 目录与 Dataset Manifest v1，可从 processed output 回溯 raw hash、生成时间和代码版本。
+18. `HIST-002`：已完成时间化队伍/赛事身份合同、SQLite schema 与 50 场显式映射审核；未观察到可审核的真实改名区间。
+19. `HIST-003`：已生成 23 行可追溯 BO3/BO5 series result；21 个 `NeedsReview` 和 6 个 BO1 明确排除，23/23 winner/resolution 一致。
 
-M0 已完成；M1 已完成并以 `Conditional Go` 通过 Gate 0，允许继续 Grade C 信号研究，但未证明实时订单簿持续稳定性。下一步为 `HIST-001`，本轮未提前实现。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 已完成 `HIST-001`–`HIST-003`。下一步为 `HIST-004`，本轮未提前实现。
