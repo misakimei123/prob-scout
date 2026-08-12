@@ -217,13 +217,13 @@ and risk check passes:
 
 - Oracle's Elixir：历史职业比赛与局级统计。
 - Leaguepedia：赛事、赛程、队伍、选手和 roster 元数据。
-- GRID Open Access：在其许可范围内用于官方数据抽样核验。
+- GRID / Riot 官方电竞数据：当前仅通过商业授权提供；在获得书面许可前不接入，只保留为未来官方数据核验候选。
 - Polymarket Gamma API：事件和市场发现。
 - Polymarket CLOB API：订单簿、报价、价格历史和后续 Paper 数据。
 
 ### 5.2 禁止路径
 
-普通 Riot Developer API 的公开政策禁止 betting/gambling 功能，并包含 crypto/blockchain 限制，因此不得将其 API Key 或数据接入 ProbScout 的研究交易链路。若未来需要官方职业赛事实时 telemetry，应申请 GRID 明确覆盖 Betting/Fantasy 用途的商业授权。
+普通 Riot Developer API 的一般政策禁止 crypto/blockchain，Monetization Policy 还禁止产品包含 betting/gambling 功能。ProbScout 面向 Polymarket，且存在未来真钱评审路径，因此普通 Riot API 与项目用途存在直接冲突或重大授权不确定性，不得接入其 API Key 或数据。若未来需要官方职业赛事实时 telemetry，必须取得 GRID/Riot 明确覆盖相应用途的书面商业授权。
 
 ### 5.3 数据许可 Gate
 
@@ -248,7 +248,7 @@ and risk check passes:
 - [Riot Developer Policy](https://developer.riotgames.com/docs/lol)
 - [Riot 官方电竞数据](https://riotesportsdata.com/league-of-legends/)
 - [GRID League of Legends Data Portal](https://grid.gg/get-league-of-legends/)
-- [Polymarket API Overview](https://docs.polymarket.com/api-reference/introduction)
+- [Polymarket API Overview](https://docs.polymarket.com/api-reference/predictions/overview)
 - [Polymarket Orderbook](https://docs.polymarket.com/trading/orderbook)
 - [Polymarket Sports Orders](https://docs.polymarket.com/trading/orders/create)
 - [Polymarket Early Exit](https://help.polymarket.com/en/articles/13364247-can-i-sell-early)

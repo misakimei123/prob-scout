@@ -111,12 +111,13 @@ flowchart LR
 - 验收：空数据库可以自动升级；重复运行 migration 不破坏数据；最小读写测试通过。
 - 证据：2026-08-12 使用 SQLx 0.9.0 + Tokio 1.53.1 完成容量上限为5的 SQLite pool、WAL、5秒 busy timeout、foreign keys、embedded migration 和 `health` 子命令；临时数据库测试覆盖自动建目录/建库、migration、最小读写、关闭重开、数据保留和 migration 单次登记；`health` 对同一数据库连续运行2次成功；全仓5个测试通过。
 
-### [ ] PS-006 建立最小质量命令
+### [x] PS-006 建立最小质量命令
 
 - 依赖：PS-002
 - 输出：README 中的本地验证命令。
 - 命令：format check、`cargo check`、窄范围测试。
 - 验收：本地一条简短命令或清晰的三条命令即可完成验证；不引入重型 lint 门禁。
+- 证据：2026-08-12 在 `README.md` 记录 `cargo fmt --check`、`cargo check --locked`、`cargo test --locked --lib` 三条命令，并按相同顺序实际执行通过；library test 共5个；未增加脚本框架、lint 门禁或新依赖。
 
 ### M0 完成检查
 
@@ -125,16 +126,19 @@ flowchart LR
 - [x] 通用能力均有开源库选择记录。
 - [x] 尚未加入策略、交易和 VPS 代码。
 
+M0 结论：`Go`。该结论只表示本地 Rust、配置、日志、SQLite 与最小质量检查可运行，不代表数据、模型或策略已经通过验证。
+
 ## 5. M1：数据可行性
 
 目标：证明 LOL 比赛、Polymarket 市场和真实订单簿能够可靠获取并匹配。
 
-### [ ] DATA-001 建立轻量 Source Registry
+### [x] DATA-001 建立轻量 Source Registry
 
 - 依赖：M0 完成检查
 - 输出：`docs/DATA_SOURCES.md`
 - 数据源：Oracle's Elixir、Leaguepedia、GRID、Polymarket Gamma/CLOB。
 - 验收：每个来源记录访问方式、用途、license/terms、研究/真钱限制和审核日期；明确普通 Riot Developer API 不接入。
+- 证据：2026-08-12 创建 `docs/DATA_SOURCES.md`，登记 Oracle's Elixir、Leaguepedia、GRID/Riot Esports Data、Polymarket Gamma/CLOB 和排除的 Riot Developer API；逐项记录访问方式、数据用途、model training、Research/Paper、真钱、attribution、retention、redistribution、风险与审核日期，并提供13个权威/许可参考链接；依据当前官方页面将 GRID 免费接入假设纠正为“商业授权前阻塞”，将 Oracle's Elixir 整体 CSV 许可标为未明确；必填字段、链接格式和 `git diff --check` 验证通过。
 
 ### [ ] DATA-002 下载 Oracle's Elixir 小样本
 
@@ -530,6 +534,8 @@ flowchart LR
 3. `PS-003`：已完成开源依赖清单。
 4. `PS-004`：已完成最小配置和结构化日志。
 5. `PS-005`：已完成 SQLite、migration 和健康检查。
-6. `PS-006`：下一任务，建立最小质量命令并完成 M0 Gate。
+6. `PS-006`：已完成最小质量命令，M0 Gate 为 `Go`。
+7. `DATA-001`：已完成轻量 Source Registry；GRID 当前阻塞，普通 Riot API 明确排除。
+8. `DATA-002`：下一任务，只下载 Oracle's Elixir 一个小时间窗口并建立 hash/字段摘要。
 
-完成 M0 检查后，再开始 `DATA-001`。这能确保项目以最小骨架启动，同时从第一行代码起遵守 Open Source First。
+M0 已完成，M1 已进入数据可行性验证。下一步只执行 `DATA-002` 小样本，不下载全量历史数据。
