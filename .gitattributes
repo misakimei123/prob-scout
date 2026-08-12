@@ -1,0 +1,2 @@
+# SQLx 使用文件内容校验 migration，固定 LF 避免跨平台 hash 漂移。
+*.sql text eol=lf

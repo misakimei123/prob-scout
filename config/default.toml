@@ -1,0 +1,5 @@
+# 当前只提供本地 Research/Paper 默认值；密钥不得写入本文件。
+environment = "local"
+database_path = "data/prob-scout.db"
+log_level = "info"
+log_json = false

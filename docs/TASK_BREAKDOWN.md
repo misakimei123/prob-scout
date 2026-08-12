@@ -70,41 +70,46 @@ flowchart LR
 
 目标：得到一个能编译、能运行测试、能读取配置、能写 SQLite 的最小 Rust 程序。不要在此阶段实现任何策略。
 
-### [ ] PS-001 补全本地文件忽略规则
+### [x] PS-001 补全本地文件忽略规则
 
 - 依赖：无
 - 修改：`.gitignore`
 - 内容：`.env`、`data/`、SQLite 数据文件、Python cache、虚拟环境、模型 artifact 和本地日志。
 - 验收：创建示例本地文件后 `git status --short` 不显示这些文件，源码和 migration 仍能正常显示。
+- 证据：2026-08-12 使用6类实际样例验证全部被忽略，并确认 `Cargo.toml`、Rust 源码、migration、`.env.example` 和测试 fixture 均保持可跟踪；`git diff --check` 通过。
 
-### [ ] PS-002 初始化 Rust 项目
+### [x] PS-002 初始化 Rust 项目
 
 - 依赖：PS-001
 - 输出：`Cargo.toml`、`src/main.rs`、`src/lib.rs`
 - 要求：单 package、单 binary，不创建 workspace 和多个 service。
 - 验收：`cargo check`、`cargo test` 通过；程序能输出版本和帮助信息。
+- 证据：2026-08-12 `cargo fmt --check`、`cargo check` 和 `cargo test` 通过；1个单元测试通过；`cargo metadata` 确认为1个 package、1个 binary 和1个 library target；`--help`、`--version` 与默认启动输出验证通过。
 
-### [ ] PS-003 建立开源依赖清单
+### [x] PS-003 建立开源依赖清单
 
 - 依赖：PS-002
 - 输出：`docs/DEPENDENCIES.md`
 - 至少评估：async runtime、HTTP、WebSocket、CLI、config、logging、SQLite、decimal、CSV/Parquet、统计/ML。
 - 硬约束：存在满足边界的成熟开源库时必须采用；所有候选均不适配时，先记录证据、最小替代范围并获得用户确认，不得由实现者自行决定重造。
 - 验收：每一行包含用途、库、license、选用原因和备选；不固定尚未实际使用的依赖版本。
+- 证据：2026-08-12 创建 `docs/DEPENDENCIES.md`，覆盖11类必需能力和29行依赖记录；未使用依赖只记录方向、不固定版本；`cargo metadata --locked` 确认当前唯一直接依赖为 `clap 4.6.6` 且 License 为 MIT OR Apache-2.0；`cargo check --locked` 与 `cargo test --locked` 通过。
 
-### [ ] PS-004 接入最小配置和日志
+### [x] PS-004 接入最小配置和日志
 
 - 依赖：PS-003
 - 输出：配置加载和结构化日志。
 - 要求：使用开源 config/CLI/logging 库；敏感值只来自环境变量，不打印 secrets。
 - 验收：缺失必需配置时返回清晰错误；测试环境可使用临时配置；日志包含时间、level 和任务上下文。
+- 证据：2026-08-12 使用 `config`、Serde、`tracing` 和 `tracing-subscriber` 完成 TOML + `PROB_SCOUT__*` 环境覆盖；3个配置测试覆盖临时文件、环境覆盖和缺失字段；默认与 JSON 启动日志均包含 timestamp、level 和 `task=startup`；缺失配置以退出码2失败；模拟 secret 未出现在日志；全仓4个测试通过。
 
-### [ ] PS-005 接入 SQLite 和 migration
+### [x] PS-005 接入 SQLite 和 migration
 
 - 依赖：PS-003
 - 输出：数据库连接、第一份 migration、健康检查命令。
 - 要求：使用成熟 Rust SQLite 库及其 migration 能力，不手写连接池和 migration runner。
 - 验收：空数据库可以自动升级；重复运行 migration 不破坏数据；最小读写测试通过。
+- 证据：2026-08-12 使用 SQLx 0.9.0 + Tokio 1.53.1 完成容量上限为5的 SQLite pool、WAL、5秒 busy timeout、foreign keys、embedded migration 和 `health` 子命令；临时数据库测试覆盖自动建目录/建库、migration、最小读写、关闭重开、数据保留和 migration 单次登记；`health` 对同一数据库连续运行2次成功；全仓5个测试通过。
 
 ### [ ] PS-006 建立最小质量命令
 
@@ -115,10 +120,10 @@ flowchart LR
 
 ### M0 完成检查
 
-- [ ] Rust 程序可以在 Windows 本地编译运行。
-- [ ] 配置、日志和 SQLite smoke test 通过。
-- [ ] 通用能力均有开源库选择记录。
-- [ ] 尚未加入策略、交易和 VPS 代码。
+- [x] Rust 程序可以在 Windows 本地编译运行。
+- [x] 配置、日志和 SQLite smoke test 通过。
+- [x] 通用能力均有开源库选择记录。
+- [x] 尚未加入策略、交易和 VPS 代码。
 
 ## 5. M1：数据可行性
 
@@ -518,10 +523,13 @@ flowchart LR
 
 ## 13. 当前下一步
 
-只执行以下三个任务，不并行展开模型和交易代码：
+当前继续按以下顺序推进，不并行展开模型和交易代码：
 
-1. `PS-001`：补全 `.gitignore`。
-2. `PS-002`：初始化最小 Rust 项目。
-3. `PS-003`：评估并记录第一批开源依赖。
+1. `PS-001`：已完成 `.gitignore`。
+2. `PS-002`：已完成最小 Rust 项目。
+3. `PS-003`：已完成开源依赖清单。
+4. `PS-004`：已完成最小配置和结构化日志。
+5. `PS-005`：已完成 SQLite、migration 和健康检查。
+6. `PS-006`：下一任务，建立最小质量命令并完成 M0 Gate。
 
 完成 M0 检查后，再开始 `DATA-001`。这能确保项目以最小骨架启动，同时从第一行代码起遵守 Open Source First。
