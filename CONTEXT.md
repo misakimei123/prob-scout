@@ -12,6 +12,34 @@ _Avoid_: AI opinion, pick, tip
 某一时刻订单簿中实际可成交的 bid、ask、depth 和费用条件，而不是页面展示概率。
 _Avoid_: Market probability, displayed price
 
+**Event**:
+ProbScout 内部识别的一场完整系列赛；它关联双方队伍和 BO 类型，但不会把来源含义不同的时间强行合并。
+_Avoid_: Match, market event
+
+**Event Source Evidence**:
+某个数据源对 Event 提供的原始赛事 ID、双方原始队名，以及带明确语义的来源时间。
+_Avoid_: Event alias
+
+**Team Alias**:
+某数据源中的队伍 ID 与原始名称到 ProbScout 内部队伍身份的显式对应关系。
+_Avoid_: Fuzzy team match
+
+**Market Mapping**:
+一个 Event 与一个 Polymarket Match Winner 市场及其有序 outcome/token 的可追溯关联。
+_Avoid_: Market match
+
+**Scheduled Start**:
+赛事数据源声明的系列赛计划开始时间。
+_Avoid_: Market end
+
+**Market End**:
+Gamma 目录提供的市场事件结束时间；它不是比赛开赛时间的替代字段。
+_Avoid_: Game start
+
+**Game Start**:
+CLOB 市场元数据中的 `gst`；盘前门禁仍需与 Scheduled Start 交叉核验。
+_Avoid_: Gamma endDate
+
 **Threshold Strategy**:
 当 Prediction 达到最低概率阈值时产生交易候选的基准策略。
 _Avoid_: Simple Bot

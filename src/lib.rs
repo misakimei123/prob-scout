@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod db;
+pub mod event_mapping;
 pub mod logging;
 
 /// 程序名称直接取自 Cargo package，避免 CLI 与构建元数据出现不同名称。

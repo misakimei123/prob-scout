@@ -32,7 +32,7 @@
 | SQLite | [`sqlx`](https://docs.rs/sqlx/latest/sqlx/) `0.9.0` 的 `sqlite`、`runtime-tokio`、`macros`、`migrate` 能力 | 已使用 | MIT OR Apache-2.0 | 提供 async SQLite、连接池和 embedded migration，满足单服务可恢复账本 | `rusqlite` 更轻但同步；本项目优先保持 Tokio 主链一致，不引入 ORM |
 | 金额与价格 | [`rust_decimal`](https://docs.rs/rust_decimal/latest/rust_decimal/) | 已选定 | MIT | 固定精度，适合资金、价格、fee 和 PnL；避免二进制浮点误差 | `f32/f64` 禁止用于资金；`bigdecimal` 对当前精度需求过重 |
 | CSV | [`csv`](https://docs.rs/csv/latest/csv/) + Serde | 已选定 | Unlicense OR MIT | 轻量、成熟，适合 Rust 导入 fixture 和导出个人报告 | `polars` 过重；复杂分析交给 Python |
-| Date/time | [`chrono`](https://docs.rs/chrono/latest/chrono/) | 已选定 | MIT OR Apache-2.0 | Polymarket SDK 已重导出相关类型，可减少时间类型转换 | `time` 同样成熟，但同时使用两套时间类型没有收益 |
+| Date/time | [`chrono`](https://docs.rs/chrono/latest/chrono/) `0.4.45` | 已使用 | MIT OR Apache-2.0 | 成熟的 timezone-aware `DateTime<Utc>` 与 RFC3339 Serde 支持；避免手写时间解析 | 关闭默认特性，仅启用 `std`、`serde`；不使用本地时区；`time` 同样成熟，但同时使用两套时间类型没有收益 |
 | Retry/backoff | 优先复用 SDK；否则在 API Task 中从 `tower` / `reqwest-retry` 选择 | 延后 | MIT | 不同请求的重试安全性不同，必须先定义幂等与预算，再启用成熟中间件 | 禁止手写通用 backoff；禁止对下单请求进行隐藏重试 |
 
 ## 3. Python 研究环境

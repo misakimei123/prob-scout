@@ -110,7 +110,89 @@ INSERT INTO source_records (
             .expect("应能读取 SQLx migration 记录");
 
         assert_eq!(content_hash, "sha256:test");
-        assert_eq!(migration_count, 1);
+        assert_eq!(migration_count, 2);
         reopened_pool.close().await;
+    }
+
+    #[tokio::test]
+    async fn stores_event_mapping_without_collapsing_source_times() {
+        let directory = tempdir().expect("应能创建临时数据库目录");
+        let pool = connect(&directory.path().join("mapping.db"))
+            .await
+            .expect("映射数据库应完成 migration");
+
+        sqlx::query(
+            r#"
+INSERT INTO events (
+    event_id, game, competition, best_of, canonical_team_a_id, canonical_team_b_id
+) VALUES (?, ?, ?, ?, ?, ?)
+"#,
+        )
+        .bind("lol:lck:2026-08-12:dns-ns")
+        .bind("league_of_legends")
+        .bind("LCK/2026 Season/Rounds 3-4")
+        .bind(3_i64)
+        .bind("lol-team:dn-soopers")
+        .bind("lol-team:nongshim")
+        .execute(&pool)
+        .await
+        .expect("统一赛事应可写入");
+
+        sqlx::query(
+            r#"
+INSERT INTO event_aliases (
+    event_id, source_name, source_event_id, observed_team_a_name,
+    observed_team_b_name, observed_time_utc, observed_time_kind
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+"#,
+        )
+        .bind("lol:lck:2026-08-12:dns-ns")
+        .bind("leaguepedia")
+        .bind("LCK/2026 Season/Rounds 3-4_Week 12_1")
+        .bind("DN SOOPers")
+        .bind("Nongshim RedForce")
+        .bind("2026-08-12T08:00:00Z")
+        .bind("scheduled_start")
+        .execute(&pool)
+        .await
+        .expect("赛事来源证据应可写入");
+
+        sqlx::query(
+            r#"
+INSERT INTO market_mappings (
+    event_id, polymarket_event_id, market_id, condition_id,
+    gamma_end_date_utc, clob_game_start_time_utc,
+    outcome_0_team_id, outcome_0_name, outcome_0_token_id,
+    outcome_1_team_id, outcome_1_name, outcome_1_token_id
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"#,
+        )
+        .bind("lol:lck:2026-08-12:dns-ns")
+        .bind("816302")
+        .bind("3422466")
+        .bind("0x621f09a374447eb0965f70f78e67bb79dd773e7ca76a7646f1dd94b787597968")
+        .bind("2026-08-12T14:00:00Z")
+        .bind("2026-08-12T08:00:00Z")
+        .bind("lol-team:dn-soopers")
+        .bind("DN SOOPers")
+        .bind("89601065606835654708323034232613903153677834435591158292528649436426629091306")
+        .bind("lol-team:nongshim")
+        .bind("Nongshim Red Force")
+        .bind("83918012109539856325069121542829351861121755068443319105428160825083612328645")
+        .execute(&pool)
+        .await
+        .expect("市场映射应可写入");
+
+        let times: (String, String) = sqlx::query_as(
+            "SELECT gamma_end_date_utc, clob_game_start_time_utc FROM market_mappings WHERE event_id = ?",
+        )
+        .bind("lol:lck:2026-08-12:dns-ns")
+        .fetch_one(&pool)
+        .await
+        .expect("应能读取两个不同语义的市场时间");
+        assert_eq!(times.0, "2026-08-12T14:00:00Z");
+        assert_eq!(times.1, "2026-08-12T08:00:00Z");
+
+        pool.close().await;
     }
 }

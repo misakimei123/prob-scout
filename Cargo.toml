@@ -5,6 +5,7 @@ edition = "2024"
 description = "Research-first prediction market bot"
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["serde", "std"] }
 clap = { version = "4.6", features = ["derive"] }
 config = { version = "0.15", default-features = false, features = ["toml"] }
 serde = { version = "1", features = ["derive"] }

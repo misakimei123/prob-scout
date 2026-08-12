@@ -170,12 +170,13 @@ M0 结论：`Go`。该结论只表示本地 Rust、配置、日志、SQLite 与�
 - 验收：对一个开放市场计算10U理论 VWAP；明确 quote 接收时间；fixture 可离线重放。
 - 证据：2026-08-12 新增 `research/capture_polymarket_order_book.ps1` 和 `docs/POLYMARKET_ORDER_BOOK_SAMPLE.md`；对 market `3422466` 的双方 token 批量获取完整 CLOB books，并通过 `clob-markets/{condition_id}` 保存 `gst`、token mapping、`tick_size=0.01`、`min_order_size=5` 和 fee schedule；quote 于 `2026-08-12T06:36:23.4929502Z` 接收，CLOB `gst=2026-08-12T08:00:00Z`，满足 15 分钟盘前门禁；DN SOOPers 与 Nongshim Red Force 的 best bid/ask 分别为 `0.38/0.39`、`0.61/0.62`，含 fee 的 10U effective entry price 分别为 `0.40189489`、`0.63178017`，均达到 95% fill 且满足 minimum size；market-info/books raw SHA-256 分别为 `083f537c982cd96f72ecc160acd0efe83a018cfdf30f1c0eae66935597c3192d`、`995f12a27fd279c69e457bb1a23ad3084c0ab14537ba99fd12994655f1563ff7`，派生 fixture SHA-256 为 `bce21066e484940417fb5a5a1a523b6a52bfec5328243d170b4fffe6aa8692a4`；连续 `-Offline` 复跑返回双 source `cached`、fixture `unchanged`。同时确认同一 event 的 Gamma `endDate` 与 CLOB `gst` 相差 6 小时，已将 CLOB `gst` 加赛事源交叉核验写为盘前硬门禁。
 
-### [ ] DATA-006 定义统一 Event 和别名
+### [x] DATA-006 定义统一 Event 和别名
 
 - 依赖：DATA-002、DATA-003、DATA-004
 - 输出：最小 `Event`、`TeamAlias`、`MarketMapping` 数据结构。
 - 要求：先用直接字段和少量规范化规则，不建立通用实体解析平台。
 - 验收：能够解释一条映射使用了哪些来源 ID、队名和时间。
+- 证据：2026-08-12 新增 `src/event_mapping.rs`、`migrations/202608120002_create_event_mapping.sql` 和 `docs/EVENT_MAPPING_SAMPLE.md`；使用 Leaguepedia `LCK/2026 Season/Rounds 3-4_Week 12_1`、Polymarket event/market `816302/3422466` 与 CLOB `gst` 建立可追溯样例。合同分别保存 Leaguepedia Scheduled Start `08:00Z`、Gamma Market End `14:00Z`、CLOB Game Start `08:00Z`，明确解释 6 小时时间语义差异；两个 outcome/token 按 index `0/1` 保序。名称规范化只处理大小写、空白和标点，缺少显式 alias、队伍不一致或 outcome 顺序错误时 fail closed；Rust 单元测试和 SQLite migration 测试覆盖映射说明、别名拒绝、时间不折叠与重开幂等。
 
 ### [ ] DATA-007 实现候选自动匹配
 
@@ -547,6 +548,7 @@ M0 结论：`Go`。该结论只表示本地 Rust、配置、日志、SQLite 与�
 9. `DATA-003`：已完成 Leaguepedia Cargo 小样本、规范队伍标识、roster、hash 和重复 cache 验证。
 10. `DATA-004`：已完成 Polymarket LOL future/historical 市场目录、ID、raw hash 和离线 fixture 验证。
 11. `DATA-005`：已完成双方 token 完整订单簿、fee、含费 10U VWAP、quote 时间和离线重放验证。
-12. `DATA-006`：下一任务，定义最小 Event、TeamAlias 和 MarketMapping，并显式处理 Leaguepedia/Gamma/CLOB 时间冲突。
+12. `DATA-006`：已完成最小 Event、TeamAlias 和 MarketMapping 合同，并显式保留 Leaguepedia/Gamma/CLOB 时间语义。
+13. `DATA-007`：下一任务，实现候选自动匹配和 `Matched`、`NeedsReview`、`Rejected` 状态。
 
-M0 已完成，M1 已取得 LOL、Gamma catalog 与 CLOB 可成交订单簿证据。下一步只执行 `DATA-006` 统一事件和别名合同，不提前实现自动匹配或交易。
+M0 已完成，M1 已取得 LOL、Gamma catalog、CLOB 可成交订单簿与统一映射合同证据。下一步只执行 `DATA-007` 候选自动匹配，不提前实现交易。
