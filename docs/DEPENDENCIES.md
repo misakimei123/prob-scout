@@ -48,6 +48,12 @@ Python 只用于数据处理、模型训练、校准和统计报告，不进入 
 | 统计检验 | [`SciPy`](https://docs.scipy.org/doc/scipy/) | 条件使用 | BSD-3-Clause | 需要 bootstrap、分布或统计检验时直接复用 | 简单汇总优先使用 NumPy/scikit-learn，避免无需求引入 |
 | 图表 | [`matplotlib`](https://matplotlib.org/stable/) | 条件使用 | PSF-based | 足以生成 calibration curve、权益曲线和 drawdown 静态图 | 不开发 Web Dashboard；seaborn 仅在确有统计图需求时再加 |
 
+## 3.1 研究下载工具
+
+| 用途 | 工具 | 状态 | License | 使用边界 |
+|---|---|---|---|---|
+| Google Drive 公开文件 | [`gdown`](https://github.com/wkentaro/gdown) `6.1.0` | 已使用（`uvx` 临时环境） | MIT | 只用于 Oracle's Elixir 官方公开文件；固定版本运行，不写入生产 Rust 依赖；Drive 配额阻塞时从官方页面下载并通过 `-LocalSourcePath` 导入 |
+
 ## 4. 明确禁止和延后
 
 - 禁止使用已归档的 `Polymarket/rs-clob-client` 和旧 crate `polymarket-client-sdk`；官方仓库已声明其不再可用。

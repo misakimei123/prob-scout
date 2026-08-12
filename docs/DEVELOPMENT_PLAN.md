@@ -129,6 +129,8 @@ ProbScout 当前是单人、低成本、研究优先的个人项目，不按企�
 - Polymarket 服务器时间与本地接收时间
 - order book hash（若接口提供）
 
+盘前门禁必须使用 CLOB market info 的 `gst`，并与 LOL 赛事源时间交叉核对。Gamma `event.endDate` 只用于目录发现；`DATA-005` 已观察到同一 LOL event 的 Gamma `endDate` 与 CLOB `gst` 相差 6 小时。任一时间缺失、冲突未解释或距离 `gst` 不足配置 buffer 时禁止生成交易。
+
 对固定 10U 预算遍历 ask depth，计算实际可获得 shares、VWAP、fee 和未成交金额：
 
 ```text

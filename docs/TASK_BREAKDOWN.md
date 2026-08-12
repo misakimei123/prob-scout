@@ -139,32 +139,36 @@ M0 结论：`Go`。该结论只表示本地 Rust、配置、日志、SQLite 与�
 - 验收：每个来源记录访问方式、用途、license/terms、研究/真钱限制和审核日期；明确普通 Riot Developer API 不接入。
 - 证据：2026-08-12 创建 `docs/DATA_SOURCES.md`，登记 Oracle's Elixir、Leaguepedia、GRID/Riot Esports Data、Polymarket Gamma/CLOB 和排除的 Riot Developer API；逐项记录访问方式、数据用途、model training、Research/Paper、真钱、attribution、retention、redistribution、风险与审核日期，并提供13个权威/许可参考链接；依据当前官方页面将 GRID 免费接入假设纠正为“商业授权前阻塞”，将 Oracle's Elixir 整体 CSV 许可标为未明确；必填字段、链接格式和 `git diff --check` 验证通过。
 
-### [ ] DATA-002 下载 Oracle's Elixir 小样本
+### [x] DATA-002 下载 Oracle's Elixir 小样本
 
 - 依赖：DATA-001
 - 输出：可重复下载命令、raw 文件 hash、字段摘要。
 - 范围：先取一个较小赛季或时间窗口，不下载全部历史。
 - 验收：重复下载能识别相同文件；数据保存在 `data/raw/` 且不进入 Git。
+- 证据：2026-08-12 新增 `research/download_oracles_elixir_sample.ps1` 和 `docs/ORACLES_ELIXIR_SAMPLE.md`；从 Oracle's Elixir 当前官方下载页取得 2025 年 CSV，只导出 2025-01-15 至 01-21 窗口；source SHA-256 为 `c9a158b9e0a965a47d31d3674c127a26f75e6c91a324bd1858e4784b1336214a`，sample SHA-256 为 `107c64b631df79208a53f34c6582349e402f5234d62e972d4644fdeba159f923`；样本包含 1,680 rows、140 games、165 columns，关键字段零空值；第二次运行返回 `cached/unchanged`，且 `git check-ignore` 确认所有 raw、sample、manifest 均被 `/data/` 排除。
 
-### [ ] DATA-003 获取 Leaguepedia 小样本
+### [x] DATA-003 获取 Leaguepedia 小样本
 
 - 依赖：DATA-001
 - 输出：赛程、队伍、赛事和 roster 示例。
 - 要求：优先使用公开 API/Cargo 能力，不写 HTML scraper，除非确认无合适接口。
 - 验收：至少能查询10场比赛及双方队伍标识，并保留来源时间戳。
+- 证据：2026-08-12 新增 `research/download_leaguepedia_sample.ps1` 和 `docs/LEAGUEPEDIA_SAMPLE.md`；使用 Leaguepedia 官方 Cargo JSON export 单次查询 2025 Worlds 固定窗口，得到 10 rows、10 个唯一 `MatchId`、11 个唯一规范 team page，10/10 场双方 team page 与 tournament roster 非空；query SHA-256 为 `c439223469688f5fb7524fd45f51fb3b502d0e1a7a36f2b5e9a34e0bbbe31115`，raw response SHA-256 为 `4a13de1023f409081867ea8c9b70208330923500abce4589599eadda0f608be7`，来源采集时间为 `2026-08-12T06:15:19.3501349Z`；显式刷新确认响应 hash 不变，随后默认运行返回 `cached`；全过程未解析 HTML，raw/manifest 均由 `/data/` 排除。
 
-### [ ] DATA-004 获取 Polymarket 市场目录
+### [x] DATA-004 获取 Polymarket 市场目录
 
 - 依赖：DATA-001
 - 输出：LOL event、market、condition ID、token ID 示例。
 - 要求：优先使用官方 API 或维护中的开源 client；不逆向网页私有接口。
 - 验收：能列出未来和历史 LOL Match Winner 候选，并保存原始响应 fixture。
+- 证据：2026-08-12 新增 `research/download_polymarket_lol_catalog.ps1` 和 `docs/POLYMARKET_LOL_CATALOG_SAMPLE.md`；通过官方 Gamma `events/keyset`、LOL `tag_id=65` 获取以 `2026-08-12T06:00:00Z` 为边界的 future/historical 各 20 个 events，并用 `sportsMarketType=moneyline` 排除单局、totals、handicap 等非系列赛胜者市场；得到 future 20、historical 20 个候选，future 20/20 接受订单，40/40 具有 event/market/condition ID、两个 outcomes 和两个 CLOB token IDs；future/historical raw SHA-256 分别为 `a882a98628b63a1ed9887cc13de3322ae4e54bb0150c9b02640ab61ff3ea3b31`、`48a8667ceff5d16aaf4aa908f4a0dd2b46c2c834515954bb70f8fa256b207944`，派生 fixture SHA-256 为 `1517133042255ab7b1a953a2ff6ee5d376954a2bdd5dfa112bb2dc99bea04e6f`；`-Offline` 复跑返回双 scope `cached` 与 fixture `unchanged`，raw/fixture/manifest 均由 `/data/` 排除。
 
-### [ ] DATA-005 获取 Polymarket 订单簿
+### [x] DATA-005 获取 Polymarket 订单簿
 
 - 依赖：DATA-004
 - 输出：best bid/ask、depth、tick size、minimum size、fee 信息。
 - 验收：对一个开放市场计算10U理论 VWAP；明确 quote 接收时间；fixture 可离线重放。
+- 证据：2026-08-12 新增 `research/capture_polymarket_order_book.ps1` 和 `docs/POLYMARKET_ORDER_BOOK_SAMPLE.md`；对 market `3422466` 的双方 token 批量获取完整 CLOB books，并通过 `clob-markets/{condition_id}` 保存 `gst`、token mapping、`tick_size=0.01`、`min_order_size=5` 和 fee schedule；quote 于 `2026-08-12T06:36:23.4929502Z` 接收，CLOB `gst=2026-08-12T08:00:00Z`，满足 15 分钟盘前门禁；DN SOOPers 与 Nongshim Red Force 的 best bid/ask 分别为 `0.38/0.39`、`0.61/0.62`，含 fee 的 10U effective entry price 分别为 `0.40189489`、`0.63178017`，均达到 95% fill 且满足 minimum size；market-info/books raw SHA-256 分别为 `083f537c982cd96f72ecc160acd0efe83a018cfdf30f1c0eae66935597c3192d`、`995f12a27fd279c69e457bb1a23ad3084c0ab14537ba99fd12994655f1563ff7`，派生 fixture SHA-256 为 `bce21066e484940417fb5a5a1a523b6a52bfec5328243d170b4fffe6aa8692a4`；连续 `-Offline` 复跑返回双 source `cached`、fixture `unchanged`。同时确认同一 event 的 Gamma `endDate` 与 CLOB `gst` 相差 6 小时，已将 CLOB `gst` 加赛事源交叉核验写为盘前硬门禁。
 
 ### [ ] DATA-006 定义统一 Event 和别名
 
@@ -539,6 +543,10 @@ M0 结论：`Go`。该结论只表示本地 Rust、配置、日志、SQLite 与�
 5. `PS-005`：已完成 SQLite、migration 和健康检查。
 6. `PS-006`：已完成最小质量命令，M0 Gate 为 `Go`。
 7. `DATA-001`：已完成轻量 Source Registry；GRID 当前阻塞，普通 Riot API 明确排除。
-8. `DATA-002`：下一任务，只下载 Oracle's Elixir 一个小时间窗口并建立 hash/字段摘要。
+8. `DATA-002`：已完成 Oracle's Elixir 小窗口、hash、字段摘要和重复缓存验证。
+9. `DATA-003`：已完成 Leaguepedia Cargo 小样本、规范队伍标识、roster、hash 和重复 cache 验证。
+10. `DATA-004`：已完成 Polymarket LOL future/historical 市场目录、ID、raw hash 和离线 fixture 验证。
+11. `DATA-005`：已完成双方 token 完整订单簿、fee、含费 10U VWAP、quote 时间和离线重放验证。
+12. `DATA-006`：下一任务，定义最小 Event、TeamAlias 和 MarketMapping，并显式处理 Leaguepedia/Gamma/CLOB 时间冲突。
 
-M0 已完成，M1 已进入数据可行性验证。下一步只执行 `DATA-002` 小样本，不下载全量历史数据。
+M0 已完成，M1 已取得 LOL、Gamma catalog 与 CLOB 可成交订单簿证据。下一步只执行 `DATA-006` 统一事件和别名合同，不提前实现自动匹配或交易。

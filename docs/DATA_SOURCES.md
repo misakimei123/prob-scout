@@ -32,8 +32,8 @@
 ### 访问与用途
 
 - 数据分发者：Oracle's Elixir / Tim Sevenhuysen；部分底层内容来自 Leaguepedia。
-- 入口：[Tools and Downloads](https://lol.timsevenhuysen.com/tools-and-downloads/)。
-- 方式：从官方 Match Data Downloads 页面下载按年份提供的 CSV；`DATA-002` 只固定一个小时间窗口，并记录最终下载 URL、hash 和字段摘要。
+- 入口：[Match Data Downloads](https://oracleselixir.com/tools/downloads)；页面当前将年度 CSV 分发到 Oracle's Elixir 的公开 Google Drive 目录。
+- 方式：下载一个年度 CSV 后只导出固定的小时间窗口；`DATA-002` 记录官方文件 ID、raw/sample hash 和字段摘要。旧的 `lol.timsevenhuysen.com` 页面只保留历史数据，不再作为当前入口。
 - 用途：历史职业比赛结果、局级统计、基础 Elo/统计特征与数据质量研究。
 
 ### License / Terms 判断
@@ -56,7 +56,7 @@
 
 - 数据所有者/分发者：Leaguepedia contributors 提交内容，Fandom 提供 wiki 与 API 服务。
 - 文档：[Leaguepedia API](https://lol.fandom.com/wiki/Help:Leaguepedia_API)。
-- 方式：只使用 MediaWiki `api.php?action=cargoquery` 的 Cargo API；不抓取渲染后的 HTML 页面。
+- 方式：只使用 MediaWiki Cargo 的结构化接口。常规入口为 `api.php?action=cargoquery`；该入口限流时允许使用 Cargo 扩展官方 `Special:CargoExport?format=json`，不抓取渲染后的 HTML 页面。
 - 用途：赛事、赛程、队伍、选手、roster、名称别名和系列赛元数据。
 
 ### License / Terms 判断
@@ -66,7 +66,7 @@
 
 ### 当前边界
 
-- Research/Paper：条件允许。`DATA-003` 必须先用极小请求验证公开 Cargo API、记录响应时间和限流行为，并缓存响应。
+- Research/Paper：条件允许。`DATA-003` 已用单次小请求验证官方 Cargo JSON export，记录 UTC 响应时间、query/response hash 和限流行为，并确认重复运行复用 cache。
 - Model training：只允许使用必要的结构化元数据做本地特征构建；保留页面/API 来源和 CC BY-SA attribution。
 - 真钱/商业：CC BY-SA 本身允许商业再利用，但 Fandom 服务访问、Riot IP 和具体 betting 用途没有在该内容许可中获得专门授权；进入真钱前必须重新审核。
 - Retention：只缓存实际使用的 API 响应和 hash，不做全站 dump；条款或访问许可变化时停止增量采集。
@@ -104,7 +104,9 @@
 - 数据/API 分发者：Polymarket；市场规则和 resolution source 由具体 market 定义。
 - 文档：[Predictions API Overview](https://docs.polymarket.com/api-reference/predictions/overview) 与 [Market Data Overview](https://docs.polymarket.com/market-data/overview)。
 - Gamma：事件、市场、tags、sports metadata 和 token IDs，用于市场发现与匹配。
+- `DATA-004` 已确认 LOL `tag_id=65`、series `10311`；系列赛 Match Winner 使用 `sportsMarketType=moneyline`，不能把 `child_moneyline`、totals 或 handicap 当成同一市场。
 - CLOB public endpoints：order book、price、spread、tick size、fee rate 和 price history，用于可成交价格研究和 Paper fill。
+- `DATA-005` 已确认 Gamma `endDate` 与 CLOB sports `gst` 可能不一致；盘前状态必须以 CLOB `gst` 加赛事源交叉核验，不能仅依赖 Gamma 时间。
 - 当前只使用 public REST/WebSocket market data。官方文档说明这些 read endpoints 不需要 API Key、钱包或认证。
 
 ### License / Terms 判断
@@ -139,7 +141,9 @@
 | Task | 是否可开始 | 前置限制 |
 |---|---|---|
 | `DATA-002` Oracle's Elixir 小样本 | 是 | 只取小窗口；保存 URL/hash；不提交 raw CSV |
-| `DATA-003` Leaguepedia 小样本 | 是，条件性 | 只用 Cargo API；低频请求；记录限流；不得 HTML scraping |
-| `DATA-004` Polymarket 市场目录 | 是 | 只用官方 public API/SDK；read-only；保存 fixture |
+| `DATA-003` Leaguepedia 小样本 | 已完成 | 只用 Cargo API/CargoExport；低频请求；记录限流；不得 HTML scraping |
+| `DATA-004` Polymarket 市场目录 | 已完成 | 官方 Gamma API read-only；future/historical raw 与派生 fixture 已缓存 |
+| `DATA-005` Polymarket 订单簿 | 已完成 | 双 token 完整 depth、CLOB market info、含费 10U VWAP 与离线重放已验证 |
+| `DATA-006` 统一 Event 和别名 | 是 | Leaguepedia/Gamma/CLOB `gst` 必须保留各自 ID 与时间证据；冲突不得静默合并 |
 | GRID 数据接入 | 否 | 等待明确商业授权与用途许可 |
 | Riot Developer API 接入 | 否 | 当前项目明确排除 |
