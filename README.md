@@ -1,6 +1,6 @@
 # ProbScout
 
-ProbScout 是一个 Research First 的预测市场机器人项目。当前阶段只建立本地研究与 Paper Trading 所需的最小骨架，不包含真钱交易。
+ProbScout 是一个 Research First 的盘前预测市场机器人项目。当前先建立本地研究与 Paper Trading 所需的最小骨架；后续只在本地稳定性、数据用途、账户资格、平台访问资格和安全 Gate 全部通过后，按 `live_smoke` → 双策略小资金实盘的顺序逐级解锁。VPS 只用于后续长期无人值守，不是开始验证的前置条件。
 
 ## 本地运行
 
