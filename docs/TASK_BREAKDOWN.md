@@ -178,36 +178,42 @@ M0 结论：`Go`。该结论只表示本地 Rust、配置、日志、SQLite 与�
 - 验收：能够解释一条映射使用了哪些来源 ID、队名和时间。
 - 证据：2026-08-12 新增 `src/event_mapping.rs`、`migrations/202608120002_create_event_mapping.sql` 和 `docs/EVENT_MAPPING_SAMPLE.md`；使用 Leaguepedia `LCK/2026 Season/Rounds 3-4_Week 12_1`、Polymarket event/market `816302/3422466` 与 CLOB `gst` 建立可追溯样例。合同分别保存 Leaguepedia Scheduled Start `08:00Z`、Gamma Market End `14:00Z`、CLOB Game Start `08:00Z`，明确解释 6 小时时间语义差异；两个 outcome/token 按 index `0/1` 保序。名称规范化只处理大小写、空白和标点，缺少显式 alias、队伍不一致或 outcome 顺序错误时 fail closed；Rust 单元测试和 SQLite migration 测试覆盖映射说明、别名拒绝、时间不折叠与重开幂等。
 
-### [ ] DATA-007 实现候选自动匹配
+### [x] DATA-007 实现候选自动匹配
 
 - 依赖：DATA-006
 - 输出：候选匹配和置信状态：`Matched`、`NeedsReview`、`Rejected`。
 - 验收：时间、队伍双方和系列赛类型矛盾时不得自动匹配；不能确定时进入人工队列。
+- 证据：2026-08-12 新增 `src/candidate_matching.rs` 和 `docs/CANDIDATE_MATCHING.md`；批量入口按 Gamma 输入顺序消费 DATA-006 `Event`、显式 `TeamAlias` 与有序 outcome/token，唯一且全部证据一致时生成 `Matched` + `MarketMapping`，队伍或 BO 硬矛盾生成 `Rejected`，缺 alias/开赛时间、超时差和多 Event 歧义生成 `NeedsReview`。时间仅比较 `Scheduled Start` 与 CLOB `Game Start`，Gamma `Market End` 不参与；8 个定向测试覆盖真实来源 ID、6 小时 Gamma offset、index 保序和全部状态，全库 `cargo fmt --check`、`cargo check --locked`、18 个 library tests 与 `git diff --check` 通过。
 
-### [ ] DATA-008 人工核验50场映射
+### [x] DATA-008 人工核验50场映射
 
 - 依赖：DATA-007
 - 输出：50场核验表和错误分类。
 - 验收：自动 `Matched` 样本无错误；发现错误必须先修规则，再重新运行完整50场。
+- 证据：2026-08-12 新增 `research/prepare_mapping_review.ps1`、`docs/DATA_008_MAPPING_REVIEW.csv` 和 `docs/DATA_008_MAPPING_REVIEW.md`；固定 Gamma 50 个 recent historical Match Winner、Leaguepedia 210-row 窗口和 50 个官方 CLOB metadata，逐场人工核对双方、BO、outcome/token index、`Scheduled Start` 与 `Game Start`。按 DATA-006 的 5 分钟容忍值得到 29 个 `Matched`、21 个 `NeedsReview`、0 个 `Rejected`；29/29 自动 `Matched` 人工确认正确，21/21 时间冲突均未误放行。完整 CSV SHA-256 为 `7fa2aa3d5ce52cf7f61041a2c94ef268120ee2828c3027f26531c2e1738d5d27`；离线复跑命中 50/50 CLOB cache，Rust 完整 50 场回放测试及全库 `cargo fmt --check`、`cargo check --locked`、19 个 library tests、`git diff --check` 通过。
 
-### [ ] DATA-009 调查历史市场数据等级
+### [x] DATA-009 调查历史市场数据等级
 
 - 依赖：DATA-004、DATA-005
 - 输出：Grade A/B/C 覆盖报告。
 - 验收：报告明确多少场有 depth、bid/ask、只有 price history；不得把 Grade C 称为可成交回测。
+- 证据：2026-08-12 新增 `research/audit_historical_market_data.ps1`、`docs/DATA_009_HISTORICAL_MARKET_GRADES.csv` 和 `docs/DATA_009_HISTORICAL_MARKET_COVERAGE.md`；以 DATA-008 固定 50 场、CLOB `game_start_time - 15 minutes` 为决策时点，对双方共 100 个 token 查询此前 24 小时、1 分钟 fidelity 的官方 `{t,p}` price history。覆盖结果为 Grade A `0/50`、Grade B `0/50`、Grade C `50/50`、Unavailable `0/50`；决策时点 depth、bid/ask 与当时 fee 证据均为 `0/50`，明确禁止用本结果声称可成交回测或历史可执行 PnL。在线保存 100 份 raw JSON 与 SHA-256 manifest，离线复跑命中 100/100 cache，覆盖 CSV SHA-256 为 `3a35d45259d057a485c7ddc668bf0411bb199a5cded2259f49fa87c2c4800414`；PowerShell 解析、50 行唯一性/无未来 point/等级断言、`cargo fmt --check`、`cargo check --locked`、19 个 library tests 与 `git diff --check` 通过。
 
-### [ ] DATA-010 作出 Gate 0 决策
+### [x] DATA-010 作出 Gate 0 决策
 
 - 依赖：DATA-008、DATA-009
 - 输出：一页以内结论：Go、Conditional Go 或 Kill。
 - 验收：结论引用实际覆盖率、映射错误和历史报价等级，不只写主观判断。
+- 证据：2026-08-12 新增 `docs/DATA_010_GATE_0_DECISION.md`，结论为 `Conditional Go`。50 场人工核验中 29 个 `Matched`、21 个 `NeedsReview`、29/29 自动匹配未发现错误；12 个必查字段在 50 场中为 600/600 非空。历史报价 A `0/50`、B `0/50`、C `50/50`；DATA-005 只证明 1 个开放市场的完整 REST order book 可读取和离线重放，未证明 WebSocket、持续采集与断线恢复。结论允许 M2/M3 的 Grade C 信号研究，但禁止历史可成交 PnL 声称，并把 unresolved mapping、resolution 对齐、实时采集稳定性和用途边界列为继续条件。DATA-005/008/009 离线复放、独立覆盖断言、文档链接/状态检查、`cargo fmt --check`、`cargo check --locked`、19 个 library tests 与 `git diff --check` 通过。
 
 ### M1 Gate（Gate 0：数据可行性）
 
-- [ ] 至少50场映射完成复核。
-- [ ] 实时订单簿可以稳定读取并离线重放。
-- [ ] 历史研究最高能达到的真实性等级已经明确。
-- [ ] 数据用途至少允许当前本地研究。
+- [x] 至少50场映射完成复核。
+- [ ] 实时订单簿可以稳定读取并离线重放：单市场 REST snapshot 与离线重放已通过，但持续采集、WebSocket 和断线恢复尚未验证。
+- [x] 历史研究最高能达到的真实性等级已经明确。
+- [x] 数据用途至少允许当前本地研究。
+
+M1 结论：`Conditional Go`。允许进入 M2/M3 的 Grade C 信号研究；不授权历史可成交 PnL、实时稳定性或真钱结论。完整条件见 `docs/DATA_010_GATE_0_DECISION.md`。
 
 ## 6. M2：历史研究数据集
 
@@ -549,6 +555,10 @@ M0 结论：`Go`。该结论只表示本地 Rust、配置、日志、SQLite 与�
 10. `DATA-004`：已完成 Polymarket LOL future/historical 市场目录、ID、raw hash 和离线 fixture 验证。
 11. `DATA-005`：已完成双方 token 完整订单簿、fee、含费 10U VWAP、quote 时间和离线重放验证。
 12. `DATA-006`：已完成最小 Event、TeamAlias 和 MarketMapping 合同，并显式保留 Leaguepedia/Gamma/CLOB 时间语义。
-13. `DATA-007`：下一任务，实现候选自动匹配和 `Matched`、`NeedsReview`、`Rejected` 状态。
+13. `DATA-007`：已完成候选自动匹配和 `Matched`、`NeedsReview`、`Rejected` 状态。
+14. `DATA-008`：已完成人工核验 50 场映射；29 个自动 `Matched` 无错误，21 个时间冲突正确进入 `NeedsReview`。
+15. `DATA-009`：已完成历史市场数据 Grade A/B/C 调查；固定 50 场全部只有 `{t,p}` price history，均为 Grade C。
+16. `DATA-010`：已完成 Gate 0 决策，结论为 `Conditional Go`；只允许 Grade C 信号研究，实时订单簿持续稳定性仍是未关闭条件。
+17. `HIST-001`：下一任务，定义 raw/processed/artifact 目录与可追溯 manifest；本轮未开始。
 
-M0 已完成，M1 已取得 LOL、Gamma catalog、CLOB 可成交订单簿与统一映射合同证据。下一步只执行 `DATA-007` 候选自动匹配，不提前实现交易。
+M0 已完成；M1 已完成并以 `Conditional Go` 通过 Gate 0，允许继续 Grade C 信号研究，但未证明实时订单簿持续稳定性。下一步为 `HIST-001`，本轮未提前实现。

@@ -1,5 +1,6 @@
 //! ProbScout 的共享应用元数据。
 
+pub mod candidate_matching;
 pub mod config;
 pub mod db;
 pub mod event_mapping;
