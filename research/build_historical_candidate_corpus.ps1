@@ -16,6 +16,15 @@ param(
     [int]$MinimumDistinctUtcDates = 60,
     [ValidateRange(1, 100)]
     [int]$MinimumDistinctPatches = 3,
+    [string]$ReferenceSeriesManifest = "",
+    [ValidatePattern('^$|^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$')]
+    [string]$MinimumRecoveryStartUtc = "",
+    [ValidateRange(1, 100)]
+    [int]$MinimumDistinctRegions = 3,
+    [ValidateRange(1, [int]::MaxValue)]
+    [int]$MinimumBo3Count = 1,
+    [ValidateRange(1, [int]::MaxValue)]
+    [int]$MinimumBo5Count = 1,
     [switch]$Refresh
 )
 
@@ -198,6 +207,29 @@ if (($end - $start).TotalDays -gt 366) {
     throw "单次 HIST-008 查询不得超过 366 天；请拆分为不可变版本。"
 }
 
+$recoveryMode = -not [string]::IsNullOrWhiteSpace($ReferenceSeriesManifest) -or
+    -not [string]::IsNullOrWhiteSpace($MinimumRecoveryStartUtc)
+if ($recoveryMode -and (
+        [string]::IsNullOrWhiteSpace($ReferenceSeriesManifest) -or
+        [string]::IsNullOrWhiteSpace($MinimumRecoveryStartUtc)
+    )) {
+    throw "M3R-002 必须同时提供 ReferenceSeriesManifest 和 MinimumRecoveryStartUtc。"
+}
+$minimumRecoveryStart = $null
+$referenceManifestDocument = $null
+$referenceSeriesRows = @()
+if ($recoveryMode) {
+    $minimumRecoveryStart = [datetimeoffset]::ParseExact(
+        $MinimumRecoveryStartUtc,
+        "yyyy-MM-dd HH:mm:ss",
+        [System.Globalization.CultureInfo]::InvariantCulture,
+        [System.Globalization.DateTimeStyles]::AssumeUniversal
+    ).ToUniversalTime()
+    if ($start -lt $minimumRecoveryStart) {
+        throw "M3R-002 StartUtc 不得早于 MinimumRecoveryStartUtc。"
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
     $OutputRoot = Join-Path $repositoryRoot "data"
 }
@@ -222,6 +254,32 @@ if (Test-Path -LiteralPath $processedDirectory) {
 }
 New-Item -ItemType Directory -Force -Path $rawDirectory | Out-Null
 
+if ($recoveryMode) {
+    $ReferenceSeriesManifest = (Resolve-Path -LiteralPath $ReferenceSeriesManifest).Path
+    & cargo run --quiet --locked --bin validate_dataset_manifest -- $ReferenceSeriesManifest
+    if ($LASTEXITCODE -ne 0) {
+        throw "M3R-002 reference Dataset Manifest v1 校验失败。"
+    }
+    $referenceManifestDocument = Get-Content -Raw -LiteralPath $ReferenceSeriesManifest | ConvertFrom-Json
+    $referenceDatasetPath = Join-Path $repositoryRoot ([string]$referenceManifestDocument.output.relative_path)
+    if (-not (Test-Path -LiteralPath $referenceDatasetPath -PathType Leaf)) {
+        throw "M3R-002 reference dataset 不存在：$referenceDatasetPath"
+    }
+    if ((Get-Sha256 $referenceDatasetPath) -ne [string]$referenceManifestDocument.output.sha256) {
+        throw "M3R-002 reference dataset hash 与 manifest 不一致。"
+    }
+    $referenceCsvRows = @(Import-Csv -LiteralPath $referenceDatasetPath)
+    if ($referenceCsvRows.Count -ne [int]$referenceManifestDocument.output.row_count) {
+        throw "M3R-002 reference dataset row count 与 manifest 不一致。"
+    }
+    $referenceSeriesRows = @($referenceCsvRows | ForEach-Object {
+            [ordered]@{
+                series_id = [string]$_.series_id
+                scheduled_start_utc = [string]$_.scheduled_start_utc
+            }
+        })
+}
+
 $where = 'MS.DateTime_UTC >= "{0}" AND MS.DateTime_UTC < "{1}"' -f $StartUtc, $EndUtc
 $seriesParameters = [ordered]@{
     "tables[0]" = "MatchSchedule=MS"
@@ -237,6 +295,13 @@ $gameParameters = [ordered]@{
     "where[0]" = $where
     "join_on[0]" = "MS.MatchId=SG.MatchId"
     "order_by[0]" = "MS.DateTime_UTC ASC,MS.MatchId ASC,SG.N_GameInMatch ASC"
+    "limit[0]" = [string]$PageSize
+    format = "json"
+}
+$tournamentParameters = [ordered]@{
+    "tables[0]" = "Tournaments=T"
+    "fields[0]" = "T.OverviewPage,T.Name,T.League,T.Year,T.Region"
+    "order_by[0]" = "T.OverviewPage ASC,T.League ASC"
     "limit[0]" = [string]$PageSize
     format = "json"
 }
@@ -259,6 +324,22 @@ $gameFetch = Get-PagedCargoRows `
     -MaxPages $MaxPagesPerQuery `
     -RepositoryRoot $repositoryRoot `
     -Force:$Refresh
+$tournamentFetch = $null
+if ($recoveryMode) {
+    # Region 在候选阶段只作为 OverviewPage 的精确 source coverage，不生成 canonical competition identity。
+    # 复用 HIST-010 已完整分页保存的同一 Tournaments 查询；raw hash 仍逐页进入本次 manifest。
+    $tournamentRawDirectory = Join-Path $OutputRoot "raw/historical_identity/leaguepedia"
+    New-Item -ItemType Directory -Force -Path $tournamentRawDirectory | Out-Null
+    $tournamentFetch = Get-PagedCargoRows `
+        -QueryName "tournaments" `
+        -SourceName "leaguepedia_tournaments" `
+        -BaseParameters $tournamentParameters `
+        -Directory $tournamentRawDirectory `
+        -Limit $PageSize `
+        -MaxPages $MaxPagesPerQuery `
+        -RepositoryRoot $repositoryRoot `
+        -Force:$Refresh
+}
 
 $temporaryInput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist008-input-{0}.json" -f [guid]::NewGuid().ToString("N"))
 $temporaryOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist008-output-{0}.json" -f [guid]::NewGuid().ToString("N"))
@@ -267,6 +348,9 @@ try {
     [ordered]@{
         series_rows = @($seriesFetch.Rows)
         game_rows = @($gameFetch.Rows)
+        tournament_rows = if ($null -eq $tournamentFetch) { @() } else { @($tournamentFetch.Rows) }
+        reference_series_rows = @($referenceSeriesRows)
+        minimum_recovery_start_utc = if ($null -eq $minimumRecoveryStart) { $null } else { Format-Utc $minimumRecoveryStart }
     } | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 -LiteralPath $temporaryInput
 
     $startRfc3339 = Format-Utc $start
@@ -301,6 +385,31 @@ try {
     }
     if ([int]$audit.coverage.candidate_count + [int]$audit.coverage.rejected_count -ne [int]$audit.coverage.distinct_match_ids) {
         throw "HIST-008 candidate/rejection 未覆盖全部 MatchId。"
+    }
+    if ($recoveryMode) {
+        if ($null -eq $audit.recovery_disjointness -or
+            [int]$audit.recovery_disjointness.member_overlap_count -ne 0 -or
+            [int]$audit.recovery_disjointness.temporal_overlap_count -ne 0) {
+            throw "M3R-002 未形成成员和时间双重零重叠证明。"
+        }
+        $regionCoverage = $audit.source_region_coverage
+        if ($null -eq $regionCoverage) {
+            throw "M3R-002 缺少 source Region coverage。"
+        }
+        if ([int]$regionCoverage.resolved_candidate_count +
+            [int]$regionCoverage.missing_candidate_count +
+            [int]$regionCoverage.ambiguous_candidate_count -ne [int]$audit.coverage.candidate_count) {
+            throw "M3R-002 source Region coverage 数量不守恒。"
+        }
+        $regionCount = @($regionCoverage.regions.PSObject.Properties).Count
+        if ($regionCount -lt $MinimumDistinctRegions) {
+            throw "M3R-002 Region 覆盖不足：actual=$regionCount, minimum=$MinimumDistinctRegions"
+        }
+        $bo3Count = [int]$audit.coverage.best_of.BO3
+        $bo5Count = [int]$audit.coverage.best_of.BO5
+        if ($bo3Count -lt $MinimumBo3Count -or $bo5Count -lt $MinimumBo5Count) {
+            throw "M3R-002 BO 覆盖不足：BO3=$bo3Count/$MinimumBo3Count, BO5=$bo5Count/$MinimumBo5Count"
+        }
     }
 
     New-Item -ItemType Directory -Path $processedDirectory | Out-Null
@@ -350,10 +459,32 @@ $generatorArguments = @(
     "-MinimumDistinctUtcDates", [string]$MinimumDistinctUtcDates,
     "-MinimumDistinctPatches", [string]$MinimumDistinctPatches
 )
+if ($recoveryMode) {
+    $generatorArguments += @(
+        "-ReferenceSeriesManifest", (Get-RepositoryRelativePath $repositoryRoot $ReferenceSeriesManifest),
+        "-MinimumRecoveryStartUtc", $MinimumRecoveryStartUtc,
+        "-MinimumDistinctRegions", [string]$MinimumDistinctRegions,
+        "-MinimumBo3Count", [string]$MinimumBo3Count,
+        "-MinimumBo5Count", [string]$MinimumBo5Count
+    )
+}
 if ($Refresh) {
     $generatorArguments += "-Refresh"
 }
 $rawInputs = @($seriesFetch.RawInputs) + @($gameFetch.RawInputs)
+if ($null -ne $tournamentFetch) {
+    $rawInputs += @($tournamentFetch.RawInputs)
+}
+$upstreamDatasets = @()
+if ($recoveryMode) {
+    # 先赋给数组变量，避免 PowerShell 的 if pipeline 将单元素数组展开为 JSON object。
+    $upstreamDatasets = @([ordered]@{
+            manifest_relative_path = Get-RepositoryRelativePath $repositoryRoot $ReferenceSeriesManifest
+            manifest_sha256 = Get-Sha256 $ReferenceSeriesManifest
+            output_relative_path = [string]$referenceManifestDocument.output.relative_path
+            output_sha256 = [string]$referenceManifestDocument.output.sha256
+        })
+}
 $candidateTimes = @($audit.candidates | ForEach-Object { [datetimeoffset]$_.scheduled_start_utc } | Sort-Object)
 $manifest = [ordered]@{
     manifest_version = 1
@@ -364,6 +495,7 @@ $manifest = [ordered]@{
         entrypoint = "research/build_historical_candidate_corpus.ps1"
         arguments = $generatorArguments
     }
+    upstream_datasets = $upstreamDatasets
     raw_inputs = @($rawInputs | Sort-Object relative_path -Unique)
     output = [ordered]@{
         relative_path = Get-RepositoryRelativePath $repositoryRoot $datasetPath
@@ -395,6 +527,13 @@ if ($LASTEXITCODE -ne 0) {
     RejectedRows = [int]$audit.coverage.rejected_count
     DistinctUtcDates = [int]$audit.coverage.distinct_utc_dates
     DistinctPatches = @($audit.coverage.patches.PSObject.Properties).Count
+    DistinctRegions = if ($null -eq $audit.source_region_coverage) { 0 } else { @($audit.source_region_coverage.regions.PSObject.Properties).Count }
+    RegionResolvedCandidates = if ($null -eq $audit.source_region_coverage) { 0 } else { [int]$audit.source_region_coverage.resolved_candidate_count }
+    RegionMissingCandidates = if ($null -eq $audit.source_region_coverage) { 0 } else { [int]$audit.source_region_coverage.missing_candidate_count }
+    RegionAmbiguousCandidates = if ($null -eq $audit.source_region_coverage) { 0 } else { [int]$audit.source_region_coverage.ambiguous_candidate_count }
+    ReferenceSeriesRows = if ($null -eq $audit.recovery_disjointness) { 0 } else { [int]$audit.recovery_disjointness.reference_series_count }
+    MemberOverlapRows = if ($null -eq $audit.recovery_disjointness) { 0 } else { [int]$audit.recovery_disjointness.member_overlap_count }
+    TemporalOverlapRows = if ($null -eq $audit.recovery_disjointness) { 0 } else { [int]$audit.recovery_disjointness.temporal_overlap_count }
     Years = @($audit.coverage.years) -join ","
     DeterministicReplay = $true
     DatasetSha256 = $datasetHash

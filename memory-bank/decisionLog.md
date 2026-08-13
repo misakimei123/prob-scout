@@ -87,3 +87,19 @@ MODEL-004 使用 scikit-learn `StandardScaler + LogisticRegression`，只在 tra
 ## 2026-08-13 — 校准器只消费冻结 raw probability 与 calibration label
 
 MODEL-005 使用 scikit-learn `CalibratedClassifierCV(method="sigmoid")`，以 `FrozenEstimator` 包装无训练参数的 raw-probability identity classifier，只从 calibration split 的 748 个 label 拟合单调 sigmoid。方法在看指标前固定，不用同一 calibration split 选择 isotonic；artifact 同时保存 raw/calibrated probability、`a`/`b`、输入模型 hash 和 calibration curve。原因是校准必须与 MODEL-004 train 拟合隔离，并避免更高自由度映射在当前样本上过拟合。影响是 calibration 指标只能视为 in-sample fit diagnostic；train/validation 的 calibrated 输出只用于映射重放，MODEL-006 才能给出 out-of-time 证据，final test 继续 sealed。
+
+## 2026-08-13 — Walk-forward 使用 expanding train、独立 calibration 和后续 evaluation
+
+MODEL-006 将公开 Development 构造成三个连续且不重叠的 evaluation fold；每个 fold 依次执行 expanding train、紧邻且独立的 calibration、以及更晚 evaluation。Constant/统计模型不读取 evaluation label，Elo 沿用逐场先预测后更新合同；整体、全部 fold、6 个赛区和 BO3/BO5 均完整报告。原因是固定 validation/calibration 指标不能证明跨时间稳定性，随机交叉验证会破坏赛前信息边界。影响是 959 场 Walk-forward 可作为 MODEL-007 的公开 Development 证据，但不 release 356 场 final test，也不自动形成 Gate 1 结论；Market Baseline 因 linked-only 母体和时间范围不同继续单独报告。
+
+## 2026-08-13 — Gate 1 失败并停止当前模型路线
+
+MODEL-007 在 Final Test release 前依据公开 Walk-forward 固定回退 sigmoid、选择 raw statistical，并冻结 Constant/Elo/raw/calibration/Walk-forward artifact、raw config、Gate config 与 evaluation code hashes。唯一一次成功主评估中，356 场 Final Test 的 raw 相对 Elo Brier/Log Loss 退化 `+0.0137266278/+0.0304206175`，超过预注册 `+0.01/+0.02` 灾难性退化线；公开加 Final 综合指标也劣于 Elo，因此 Gate 1 裁决 `failed_stop_modeling`。影响是 `BACK-001` 和整个 M4 不获授权，不得在看过本次结果后修改模型并复用同一 Final Test；恢复路线必须建立新的独立 out-of-sample cohort、新 version 与新 seal，并永久保留本次失败 artifact。
+
+## 2026-08-13 — 旧 Final Test 退役并只授权新数据恢复路线
+
+M3R-001 将已释放的 356 场 Final Test 永久标记为 `retired_diagnostic_evidence_never_independent_again`。完全相同的 325 场冻结模型在 959 个公开 evaluation IDs 上仍 3/3 folds 略优于 Elo，说明 expanding/frozen 训练协议差异不是公开优势符号的必要条件；Final BO5 占比由 `7.51%` 升至 `47.19%`，共同 `Region×BO` cell 的构成效应和 cell 内 residual 均为实质贡献，但无法因果识别具体 feature 或修复方案。影响是下一步只授权 `M3R-002` 建立 2025-07-01 之后的新 candidate corpus；旧 Final 禁止用于 feature/model/parameter/calibration 选择和未来 Gate。
+
+## 2026-08-13 — 恢复候选必须以旧 corpus upstream 证明双重零重叠
+
+M3R-002 固定 `[2025-07-01,2026-07-01)` 为新 source candidate 时间窗，并把旧 1,778 条 Series Result manifest/output 作为显式 upstream。Rust audit 对 reference/new `series_id` 和 Scheduled Start 同时 fail closed，只有 `member_overlap_count=0`、`temporal_overlap_count=0` 且 `max(old)<min(new)` 才能生成有效恢复语料。`Tournaments.OverviewPage -> Region` exact relation 在本阶段只统计 source coverage，不生成或暗示 Canonical Competition identity，也不合并不同 Region source value。原因是恢复 cohort 的独立性必须由实际旧成员和时间证据证明，而 Region 验收不能提前绕过 M3R-003 的时间化 identity 合同。影响是 3,759 candidates 仍不能计作 eligible Series Result；下一步必须重新执行 Team/Competition identity、结果与 `T-15m` 特征 lineage。

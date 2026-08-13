@@ -30,9 +30,13 @@
 - M3：`MODEL-003` 同一赛前 cutoff 的 Market Baseline；16 条公开 Development linked series 使用 Grade C `p` 信号，明确排除 ask/depth/fee/PnL 语义，兼容 split 的 7 条 final test 保持 sealed。
 - M3：`MODEL-004` train-only 可解释 LogisticRegression；10 个 `T-15m` team-form 差值特征，固定随机种子和完整 artifact metadata，validation/calibration raw probability 可重复，356 条 final test 保持 sealed。
 - M3：`MODEL-005` 冻结 raw probability 的 sigmoid 校准；只用 748 条 calibration label 拟合，raw/calibrated 指标与 10-bin curve 可比较并明确标记为 fit diagnostic，356 条 final test 保持 sealed。
+- M3：`MODEL-006` 三个 expanding Walk-forward fold；959 场 evaluation 唯一归属，整体/时间/赛区/BO 指标完整报告，raw 的整体和 3/3 fold 略优于 Elo，同时保留 Americas/China/BO5 与校准不稳定反例，356 条 final test 保持 sealed。
+- M3：`MODEL-007` Gate 1；release 前回退 sigmoid、选择 raw statistical，冻结 hashes 后唯一一次成功评估 356 场 Final Test。raw 显著劣于 Elo并超过预注册退化线，最终状态 `failed_stop_modeling`，M4 未获授权。
+- M3R：`M3R-001` Gate 1 失败归因；完全相同冻结模型公开重放仍略优于 Elo，Final 的 BO/Region 构成变化和共同 cell 内退化均为实质因素，旧 Final 永久退役。
+- M3R：`M3R-002` 非重叠恢复候选语料；`[2025-07-01,2026-07-01)` 得到 3,759 candidates，覆盖 349 个 UTC 日期、25 Patch、9 Region source value 和 BO3/BO5，且与旧 1,778 条 member/temporal overlap 均为 0。
 
 ## 待完成
 
-- M3：下一任务仅执行 `MODEL-006` Walk-forward；保持 final test sealed，完整报告所有时间窗口，不提前进入 Gate 1、策略或执行开发。
+- M3R：下一任务 `M3R-003`，对新 3,759 candidates 构建 exact、time-bounded identity evidence、Series Result 与 `T-15m` Feature Snapshot。M4 继续阻塞。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。

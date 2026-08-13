@@ -45,7 +45,7 @@ _Avoid_: Competition string match
 _Avoid_: Game result, feature row, market-required result
 
 **Historical Series Candidate**:
-通过 MatchSchedule 与 ScoreboardGames 结构校验、但仍只保存 Leaguepedia team/competition source key 的完整 BO3/BO5 候选；只有后续时间化 identity resolution 成功后才能成为 eligible Series Result。
+通过 MatchSchedule 与 ScoreboardGames 结构校验、但仍只保存 Leaguepedia team/competition source key 的完整 BO3/BO5 候选；可用 `OverviewPage -> Region` exact relation 做描述性 source coverage，但这不等于 Competition identity 已解析。只有后续时间化 identity resolution 成功后才能成为 eligible Series Result。
 _Avoid_: Eligible series, normalized team identity
 
 **Identity Coverage Audit**:
@@ -99,6 +99,22 @@ _Avoid_: Calibrated probability, final model, causal effect
 **Calibrated Statistical Probability**:
 以冻结的 Raw Statistical Probability 为唯一输入、只用公开 calibration split label 拟合的单调概率映射；calibration split 指标属于拟合诊断，必须由后续 Walk-forward 才能形成 out-of-time 证据。
 _Avoid_: Retrained model, final-test calibration, guaranteed frequency
+
+**Walk-forward Evaluation**:
+按时间重复执行 expanding train、独立 calibration 和更晚 evaluation 的公开 Development 评估；每个 evaluation series 只出现一次，并完整报告所有时间、赛区和赛制分段，不挑选最好窗口。
+_Avoid_: Random cross-validation, final-test evaluation, best-window report
+
+**Gate 1 Final Decision**:
+在模型、配置、校准、Walk-forward 与评估代码全部冻结后，只对 sealed Final Test 执行一次主评估形成的继续、回退或停止裁决；失败结果必须永久保留，不得修改模型后复用同一 Final Test。
+_Avoid_: Repeated final-test tuning, best-after-test selection, strategy authorization after failure
+
+**Retired Final Test**:
+已完成一次性 Gate 主评估的 Final Test；之后只允许作为失败归因的 diagnostic evidence，不再具备独立验证资格，禁止用于模型、特征、参数、校准选择或未来 Gate。
+_Avoid_: Recycled holdout, post-test tuning set, second final evaluation
+
+**Recovery Cohort**:
+时间上严格晚于已退役 Final Test、成员零重叠且重新执行 identity/result/feature/split lineage 的新数据批次；只有新的 sealed Final Test 才能支持恢复 Gate。
+_Avoid_: Extended old final, shuffled old corpus, renamed holdout
 
 **Data Quality Gate**:
 在模型开发前对 eligible series 数量、时间/赛区/Patch 覆盖、关键字段缺失、时间防泄漏、异常分布和历史市场真实性等级作出的可重复判定。`NotReadyForM3` 表示数据构建任务可以完成，但模型阶段仍被证据门禁阻塞。

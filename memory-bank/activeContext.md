@@ -26,10 +26,14 @@
 - `MODEL-003` 已实现固定 CLOB `Game Start - 15m` cutoff 的 Market Baseline。只消费 16 条公开 Development linked series，按显式 outcome 顺序选择双方最后一个 Grade C `{t,p}` point；train/validation/calibration Brier 为 `0.1544916667/0.0833964286/0.2553708333`，Log Loss 为 `0.4658236962/0.3087825440/0.7434727676`。兼容 split 的 7 条 final test 保持 sealed，当前 2025H1 corpus 的 356 条 final test 未消费；artifact SHA-256 为 `6dd7db70e085070d3e910e30f2ee105e6222b958f6a01cd2cca2348183432d9a`。
 - `MODEL-004` 已实现 scikit-learn train-only `StandardScaler + LogisticRegression`。10 个可解释输入均为双方 `T-15m` form 差值/availability/BO5 标记；325 条 train 拟合，validation/calibration 只评估 raw probability。train/validation/calibration Brier 为 `0.2211313304/0.2383272878/0.2193676117`，Log Loss 为 `0.6345254046/0.6712635152/0.6294449007`；356 条 final test 保持 sealed，artifact SHA-256 为 `7035396395c726232fe07e5b119b5d7c4cf0b39d60fef2fa2a2a77a789ba2611`。
 - `MODEL-005` 已固定消费 MODEL-004 v2 raw probability，用 scikit-learn `CalibratedClassifierCV(method="sigmoid") + FrozenEstimator` 只在 748 条 calibration label 上拟合。calibration fit diagnostic 的 raw/calibrated Brier 为 `0.2193676117/0.2161185633`，Log Loss 为 `0.6294449007/0.6221717139`；10-bin curve、1,422 条 raw/calibrated Development prediction 和可重放 `a/b` 已写入 artifact。356 条 final test 保持 sealed，artifact SHA-256 为 `3ba241cbcbfbd397591daf7d8f0f7cefb905c46f5940928f4b0692aa95ea16df`。
+- `MODEL-006` 已完成 3 个 expanding train / disjoint calibration / later evaluation fold，共 959 场不重叠 evaluation。整体 Elo/raw/calibrated Brier 为 `0.2264871457/0.2240006321/0.2241384269`，Log Loss 为 `0.6447592740/0.6393848851/0.6399372269`；raw 在 3/3 fold 略优于 Elo，但 Americas、China、BO5 均差于 Elo，sigmoid 只在 fold 1 改善 raw。整体、时间、6 Region、BO3/BO5 与 10-bin curve 已完整输出，356 条 final test 保持 sealed，artifact SHA-256 为 `bd08f5694d8c81b33b18af336614a29488e2ba7015c7274fadc62d74f25c9c4f`。
+- `MODEL-007` 已在 release 前固定回退 sigmoid 并选择 raw statistical，冻结全部 artifact/config/evaluation hashes 后只成功执行一次 356 场 Final Test。raw/Elo Brier 为 `0.2500447064/0.2363180786`，Log Loss 为 `0.6953063265/0.6648857090`；raw 退化 `+0.0137266278/+0.0304206175`，超过预注册保护线，Gate 1 为 `failed_stop_modeling`。artifact SHA-256 为 `8380bb33219277e8404dd9b07c28ecda00aa19e27d1d09cad96f39ffd406af37`。
+- `M3R-001` 已使用完全相同的 325 场冻结候选重放 959 个公开 evaluation IDs，仍在 3/3 folds 略优于 Elo；因此 expanding/frozen 训练协议差异存在但不足以解释 Final sign reversal。Final BO5 share 从 `7.51%` 升至 `47.19%`，共同 `Region×BO` cells 的 Brier composition/residual 为 `+0.0077955435/+0.0084671032`，两者均有实质贡献；18 场 `China|BO5` 无公开参照。旧 Final 已永久退役，归因 artifact SHA-256 为 `ba126c4ea192f4078f8795646796fa37cf5a2503a9f0cd7a89c59cd7e543271c`。
+- `M3R-002` 已建立 `[2025-07-01,2026-07-01)` 非重叠 source candidate corpus：16,598 个 MatchId 得到 3,759 candidates、12,839 rejections，覆盖 349 个 UTC 日期、25 Patch、9 个 Region source value、BO3 2,819 / BO5 940。旧 1,778 条结束于 `2025-06-30T18:30:00Z`，新 candidate 起于 `2025-07-01T16:00:00Z`，member/temporal overlap 均为 0；103 个 raw page、旧 corpus upstream 和 output hash 已全量复核。dataset SHA-256 为 `f5c4210a04417392c92801a8d5f9e7d6c2b7c9f2871e63bd6e89d77f3d32860b`。
 
 ## 下一任务
 
-下一任务是 `MODEL-006` Walk-forward 评估。必须按时间窗口重新建立训练/校准/评估边界，完整比较 Constant、Elo、raw statistical 与 calibrated statistical probability；不得读取 sealed final test、只展示最好窗口或提前作 Gate 1、策略、PnL、执行结论。
+下一任务是 `M3R-003`，只对 M3R-002 的 3,759 candidates 重新构建 exact、time-bounded Team/Competition identity evidence、Series Result 与 `T-15m` Feature Snapshot。`Missing`/`Ambiguous` 必须 fail closed，source-time leakage 必须为 0；不得提前建立新 split、训练模型或开始 `BACK-001`，也不得复用已退役的 356 场 Final Test。
 
 关键验收边界：
 
@@ -45,6 +49,7 @@
 - Series Result 以 Leaguepedia `MatchId` 为键；重复候选只有核心赛事事实完全一致才按证据键稳定合并，任一比分、winner、Patch、时间、队伍或 competition 冲突都 fail closed。
 - Market Resolution Link 以 `(series_id, market_id)` 为键并保持可选；缺少 link 不淘汰 Series Result，但该赛事不得进入 Market Baseline、策略或 PnL。存在 link 时任何 outcome、0/1 resolution 或 winner 冲突都 fail closed。
 - Historical Series Candidate 只保存 Leaguepedia 原始 team/competition source key、完整比分/Patch 和完成时间；candidate 数量不得当作 eligible 数量。MatchSchedule 与 ScoreboardGames 分开采集，缺 game 必须成为 rejection。
+- M3R-002 的 `OverviewPage -> Region` 只用于描述性 source coverage，不创建 Canonical Competition identity；原始 `Americas`/`North America` 等 value 不在 candidate 层合并。恢复 corpus 必须同时固定旧 corpus upstream，并在 Rust audit 中证明 member/temporal overlap 为 0。
 - Feature Snapshot 固定 `T-15m`；目标合同不接收比分、winner 或 market resolution。历史结果只有最后一局结束时间不晚于 cutoff 才可使用，每个特征记录最新来源时间。
 - HIST-004 历史 form 只按 Leaguepedia 精确 source key；不得把当前 Canonical Team identity 向历史外推。rename/alias 只有补齐带有效区间的 HIST-002 evidence 后才能合并。
 - HIST-005 只按 Scheduled Start 使用 `[start,end)` 连续时间窗，不随机打散、不按小局拆分；同一 series 必须唯一命中一个集合。
@@ -59,4 +64,4 @@
 
 ## 首次检查
 
-进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/TASK_BREAKDOWN.md` 的 `MODEL-006`、`docs/STATISTICAL_MODEL.md`、`docs/PROBABILITY_CALIBRATION.md`、最新 statistical/calibration artifact/manifest、Feature/Split manifest 与 `CONTEXT.md`；不得读取 sealed final test IDs 或提前进入 Gate 1/策略任务。
+进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/GATE1_FAILURE_ATTRIBUTION.md`、`docs/GATE1_DECISION.md`、`docs/TASK_BREAKDOWN.md` 与 `CONTEXT.md`。下一任务只执行 `M3R-002` 新 candidate corpus，不训练模型、不重跑 MODEL-007、不开始 `BACK-001`。

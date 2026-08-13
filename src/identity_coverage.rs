@@ -499,6 +499,8 @@ mod tests {
                 best_of: BTreeMap::from([("bo3".to_owned(), candidates.len() as u32)]),
                 rejection_counts: BTreeMap::new(),
             },
+            source_region_coverage: None,
+            recovery_disjointness: None,
             candidates,
             rejections: Vec::new(),
         }

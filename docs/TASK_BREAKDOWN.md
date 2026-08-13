@@ -338,23 +338,68 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 - 验收：校准前后 Brier、Log Loss 和 calibration curve 可比较。
 - 证据：2026-08-13 新增 `research/model005_probability_calibration.py`、`research/build_probability_calibration.ps1`、`tests/test_model005_probability_calibration.py` 与 `docs/PROBABILITY_CALIBRATION.md`。固定消费不可变 MODEL-004 v2 artifact，使用 scikit-learn `CalibratedClassifierCV(method="sigmoid") + FrozenEstimator`，只从 748 条 calibration label 拟合单调映射；非 calibration label 不影响拟合参数。calibration fit diagnostic 的 raw/calibrated Brier 为 `0.2193676117/0.2161185633`，Log Loss 为 `0.6294449007/0.6221717139`，10 个 quantile-bin curve 均可比较；指标明确不作为 out-of-time Gate 证据。artifact 同时保存 1,422 条 Development raw/calibrated probability 和可重放 `a/b` 参数，356 条 final test 继续 sealed。8 个定向测试覆盖拟合隔离、确定性、曲线/指标、单调映射、输入 hash、类别下限和 final seal；累计 35 个模型测试、84 个 Rust tests、Ruff、`cargo fmt/check --locked`、PowerShell parser、artifact 合同与 `git diff --check` 均通过。真实 artifact 双构建 SHA-256 一致，为 `3ba241cbcbfbd397591daf7d8f0f7cefb905c46f5940928f4b0692aa95ea16df`。
 
-### [ ] MODEL-006 Walk-forward 评估
+### [x] MODEL-006 Walk-forward 评估
 
 - 依赖：MODEL-005
 - 输出：按时间窗口的模型与基准比较。
 - 验收：报告包含整体、时间、赛区和赛制分段；不只展示最好窗口。
+- 证据：2026-08-13 新增 `research/model006_walk_forward.py`、`research/build_walk_forward_evaluation.ps1`、`tests/test_model006_walk_forward.py` 与 `docs/WALK_FORWARD_EVALUATION.md`。公开 Development 构造成 3 个严格时间前推 fold，每个 fold 使用 expanding train、独立 calibration 和后续不重叠 evaluation，共评估 959 场；完整输出 Constant、Elo、raw/calibrated statistical 的整体、逐时间窗口、6 个赛区及 BO3/BO5 指标，Market Baseline 因 linked-only 不同母体明确排除交叉指标。整体 Elo/raw/calibrated Brier 为 `0.2264871457/0.2240006321/0.2241384269`，Log Loss 为 `0.6447592740/0.6393848851/0.6399372269`；raw 在 3/3 fold 略优于 Elo，但 Americas、China 和 BO5 均差于 Elo，sigmoid 只在 fold 1 改善 raw，反方证据完整保留。8 个定向测试覆盖时间边界、evaluation 唯一归属、当前 label 隔离、calibration 隔离、分段完整性、类别下限、确定性及 final seal；累计 43 个模型测试、84 个 Rust tests、Ruff、`cargo fmt/check --locked`、PowerShell parser、artifact membership/时间边界/final seal 与 `git diff --check` 均通过。真实 artifact 双构建 SHA-256 一致，为 `bd08f5694d8c81b33b18af336614a29488e2ba7015c7274fadc62d74f25c9c4f`。356 场 final test 继续 sealed，Gate 1 状态明确为 `not_made_in_model006`。
 
-### [ ] MODEL-007 作出 Gate 1 决策
+### [x] MODEL-007 作出 Gate 1 决策
 
 - 依赖：MODEL-006
 - 输出：模型继续、回退或停止结论。
 - 验收：final test 只运行一次主评估；后续模型修改必须产生新版本并保留旧结果。
+- 证据：2026-08-13 新增 `research/model007_gate1_config.json`、`research/model007_gate1.py`、`research/build_gate1_decision.ps1`、`src/bin/release_final_test_manifest.rs`、`tests/test_model007_gate1.py` 与 `docs/GATE1_DECISION.md`。公开 Walk-forward 后在 release 前固定回退 sigmoid、选择 raw statistical，并冻结 Constant/Elo/raw/calibration/Walk-forward artifact、raw config、Gate config 与 evaluation code hashes；Rust 按 `(Scheduled Start, series_id)` 重新核对 356 场 commitment 后执行唯一一次成功主评估，calibrated probability 未进入 Final Test。Final Test raw/Elo Brier 为 `0.2500447064/0.2363180786`，Log Loss 为 `0.6953063265/0.6648857090`，raw 相对 Elo 分别退化 `+0.0137266278/+0.0304206175`，同时超过预注册 `+0.01/+0.02` 保护线；公开 959 场加 Final 356 场的综合 raw 也劣于 Elo。Gate 1 裁决为 `failed_stop_modeling`，不授权 `BACK-001`；成功 artifact SHA-256 为 `8380bb33219277e8404dd9b07c28ecda00aa19e27d1d09cad96f39ffd406af37`。成功评估前两次 fail-closed 中止均发生在 label/feature/prediction/metric 读取前，未生成结果 artifact。
 
 ### M3 Gate（Gate 1：概率模型）
 
-- [ ] 模型不能在多个时间窗口稳定劣于 Elo Baseline。
-- [ ] 概率校准没有明显系统性过度自信。
-- [ ] 所有结果可由固定命令重复生成。
+- [x] 模型没有在多个时间窗口稳定劣于 Elo Baseline：4 个顺序窗口中 raw 在 3 个公开窗口略优、Final Test 显著劣于 Elo。
+- [x] raw probability 未触发预注册的系统性过度自信阈值；sigmoid 已在 Final Test release 前回退。
+- [x] 冻结输入、代码、命令与 artifact hash 均已记录；一次性 Final Test 结果禁止重复生成或覆盖。
+- [ ] Final Test 灾难性退化与公开加 Final 综合非劣保护线均失败；Gate 1 最终状态为 `failed_stop_modeling`，M4 保持阻塞。
+
+## 7A. M3R：Gate 1 失败恢复
+
+目标：在不复用旧 Final Test 作独立验证的前提下完成失败归因，扩充新的时间外数据，并建立全新 seal 后再决定是否恢复概率模型路线。M3R 不授权策略、PnL 或执行开发。
+
+### [x] M3R-001 Gate 1 失败归因与旧 Final Test 退役
+
+- 依赖：MODEL-007
+- 输出：基于不可变 MODEL-006/007 artifacts 的时间、赛区、赛制和预测分歧归因；旧 Final Test 状态更新为 retired diagnostic evidence。
+- 验收：不训练或选择模型、不重新执行 Gate；明确区分构成变化、分段内时间退化和证据不足，所有归因可由固定 artifact hashes 重放。
+- 证据：2026-08-13 新增 `research/m3r001_gate1_failure_attribution.py`、`research/build_gate1_failure_attribution.ps1`、`tests/test_m3r001_gate1_failure_attribution.py` 与 `docs/GATE1_FAILURE_ATTRIBUTION.md`。固定消费 MODEL-004/006/007 immutable artifacts，使用完全相同的 325 场冻结模型重放 959 个公开 evaluation IDs，仍在 3/3 folds 略优于 Elo，排除 expanding retrain 才能产生公开优势的解释。Final BO5 share 从 `7.51%` 升至 `47.19%`；共同 `Region×BO` cells 的 Brier 构成效应为 `+0.0077955435`、cell 内 residual 为 `+0.0084671032`，两者均为实质贡献，18 场 `China|BO5` 因公开无参照单列为 evidence gap。旧 356 场 Final 已永久标记 retired diagnostic evidence，禁止任何模型选择或未来 Gate 复用。7 个定向测试、双构建确定性和 artifact lineage 校验通过，artifact SHA-256 为 `ba126c4ea192f4078f8795646796fa37cf5a2503a9f0cd7a89c59cd7e543271c`。
+
+### [x] M3R-002 扩展非重叠历史候选语料
+
+- 依赖：M3R-001、HIST-008
+- 输出：时间严格晚于旧 Final Test 结束时点的新 source-identity candidate corpus。
+- 验收：与旧 1,778 场 corpus 零成员/时间重叠；分页 raw、rejection audit、Patch/Region/日期覆盖和 Dataset Manifest 完整。
+- 证据：2026-08-13 扩展 `src/historical_candidates.rs` 与 `research/build_historical_candidate_corpus.ps1`，新增恢复边界、旧 corpus upstream、成员/时间双重零重叠和 `OverviewPage -> Region` exact source coverage 合同，并新增 `docs/RECOVERY_CANDIDATE_CORPUS.md`。真实窗口 `[2025-07-01,2026-07-01)` 完整分页保存 34 个 MatchSchedule、48 个 ScoreboardGames、21 个 Tournaments raw page；16,598 个 MatchId 得到 3,759 candidates、12,839 rejections，覆盖 349 个 UTC 日期、25 Patch、9 个 Region source value、BO3 2,819 / BO5 940。旧 1,778 条结束于 `2025-06-30T18:30:00Z`，新 candidate 起于 `2025-07-01T16:00:00Z`，member/temporal overlap 均为 0；3,759/3,759 Region relation exact resolved，0 missing、0 ambiguous，但不在本任务生成 Canonical Competition identity。12 个定向及全仓 87 个 Rust tests、相同输入双构建、`cargo fmt/check --locked`、PowerShell parser、Rust manifest 校验及 103 raw + 1 upstream + output 全量 hash 复核通过；dataset SHA-256 为 `f5c4210a04417392c92801a8d5f9e7d6c2b7c9f2871e63bd6e89d77f3d32860b`。
+
+### [ ] M3R-003 构建新时间化身份、赛果与特征
+
+- 依赖：M3R-002、HIST-010
+- 输出：新 corpus 的 identity coverage、Series Result 与 `T-15m` Feature Snapshot。
+- 验收：继续使用 exact、time-bounded identity evidence；Missing/Ambiguous fail closed，source-time leakage 为 0。
+
+### [ ] M3R-004 建立新 Development 与 sealed Final Test
+
+- 依赖：M3R-003
+- 输出：新时间窗的 development splits 和从未公开成员的全新 Final Test seal。
+- 验收：旧 Final Test 不得进入新 Final；新 development/final 连续、唯一、无重叠，commitment 和 release 合同独立版本化。
+
+### [ ] M3R-005 开发并 Walk-forward 验证恢复模型
+
+- 依赖：M3R-004
+- 输出：只在新 Development 上开发的候选模型、Elo baseline 和完整 Walk-forward。
+- 验收：模型假设、特征和 Gate 阈值在新 Final release 前冻结；完整报告所有窗口、赛区、BO 和反例。
+
+### [ ] M3R-006 作出恢复 Gate 1 决策
+
+- 依赖：M3R-005
+- 输出：使用全新 sealed Final Test 的一次性继续或停止结论。
+- 验收：旧 Final 只作为 retired diagnostic evidence；新 Final 主评估只成功运行一次，失败结果永久保留。
 
 ## 8. M4：历史双策略回测
 
@@ -615,5 +660,9 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 29. `MODEL-003`：已实现统一 `Game Start - 15m` cutoff 的 Grade C Market Baseline；16 场公开 Development linked series 的概率信号可重复计算，`p` 与 ask/depth/fee 明确分离，兼容 split 的 7 场 final test 继续 sealed。
 30. `MODEL-004`：已实现 train-only 可解释 LogisticRegression；10 个双方赛前 form 差值特征经过 train-only StandardScaler，validation/calibration raw probability 可重复评估，356 场 final test 继续 sealed。
 31. `MODEL-005`：已使用冻结的 MODEL-004 raw probability 与公开 calibration label 拟合 sigmoid；raw/calibrated 指标和 10-bin curve 可比较，拟合诊断与 out-of-time 证据严格分离，356 场 final test 继续 sealed。
+32. `MODEL-006`：已完成 3 个 expanding Walk-forward fold、959 场不重叠 evaluation；整体、时间、赛区和 BO 分段完整报告，raw 在 3/3 fold 略优于 Elo，但 Americas/China/BO5 与不稳定校准反例保留，356 场 final test 继续 sealed。
+33. `MODEL-007`：已在冻结 hashes 后完成唯一一次 356 场 Final Test 主评估；raw 显著劣于 Elo，Gate 1 为 `failed_stop_modeling`，`BACK-001` 与 M4 保持阻塞。
+34. `M3R-001`：已完成失败归因并永久退役旧 Final Test；构成变化与共同分段内退化均有实质贡献，下一任务仅授权 `M3R-002` 新数据扩展。
+35. `M3R-002`：已建立 3,759 条新 source-identity candidates；覆盖 349 个日期、25 Patch、9 Region source value 和 BO3/BO5，与旧 1,778 条 member/temporal overlap 均为 0。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-005`。下一任务是 `MODEL-006` Walk-forward 评估；不得提前 release final test、进入 Gate 1 决策、策略、PnL 或执行开发。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-007`，但 Gate 1 最终裁决为 `failed_stop_modeling`。恢复阶段已完成 `M3R-001`–`M3R-002`，下一任务是 `M3R-003`：对新 3,759 candidates 重新构建 exact、time-bounded identity evidence、Series Result 与 `T-15m` Feature Snapshot。M4 的 `BACK-001` 及后续策略、PnL、执行任务继续阻塞。

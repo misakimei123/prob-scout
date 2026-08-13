@@ -1,0 +1,24 @@
+{
+  "config_schema_version": 1,
+  "candidate_model": "raw_statistical",
+  "calibration_decision": "rollback_sigmoid_before_final_release",
+  "decision_rules": {
+    "minimum_favorable_windows": 3,
+    "maximum_final_brier_degradation_vs_elo": 0.01,
+    "maximum_final_log_loss_degradation_vs_elo": 0.02,
+    "require_combined_brier_not_worse_than_elo": true,
+    "require_combined_log_loss_not_worse_than_elo": true,
+    "maximum_overall_confidence_overstatement": 0.05,
+    "high_confidence_probability_threshold": 0.8,
+    "minimum_high_confidence_series": 30,
+    "maximum_high_confidence_overstatement": 0.1
+  },
+  "primary_metrics": [
+    "brier_score",
+    "log_loss"
+  ],
+  "segment_dimensions": [
+    "region",
+    "best_of"
+  ]
+}

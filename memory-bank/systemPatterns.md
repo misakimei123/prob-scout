@@ -28,3 +28,6 @@
 - MODEL-003 Market Baseline 只消费已验证 linked subset；双方分别取统一 CLOB `Game Start - 15m` cutoff 前最后一个官方 `p`，按显式 outcome 顺序映射且不归一化。Grade C `p` 永远与 ask/bid/depth/fee 和可成交 PnL 分开报告，不同时间范围的评估母体不得直接比较指标。
 - MODEL-004 统计模型使用 train-only `StandardScaler + LogisticRegression`；输入只允许双方 `T-15m` form 差值、availability 差和 BO5 标记，按显式 team ID 对齐。缺失胜率编码为中性 0.5 并保留 availability，不代表真实 50%；validation/calibration 只评估 raw probability，校准留给 MODEL-005。
 - MODEL-005 只对冻结的 MODEL-004 raw probability 拟合 sigmoid；唯一拟合标签来自 calibration split。artifact 必须保存可重放参数与 raw/calibrated probability；calibration 指标是 fit diagnostic，train/validation 转换不是 out-of-time 评估，final test 保持 sealed。
+- MODEL-006 Walk-forward 固定为 expanding train、独立 calibration、后续 evaluation；evaluation membership 不重叠，所有时间/赛区/BO 分段完整输出。Market Baseline 不与不同 linked-only 母体混算；任务只产出证据，不替 MODEL-007 作 Gate 1 决策。
+- MODEL-007 release 前必须冻结候选、artifact/config/evaluation hashes；Rust 按 `(Scheduled Start, series_id)` 重新核对 final commitment。一次性 Final Test 成功后禁止覆盖或重跑，失败结果永久保留；当前 Gate 1 为 `failed_stop_modeling`，M4 被阻塞。
+- M3R 失败归因只消费不可变 model/evaluation artifacts；已释放 Final 永久退役为 diagnostic evidence。构成分解只在公开和 Final 共同 `Region×BO` cells 内计算，公开未覆盖 cells 单列为 evidence gap，不允许外推或参与模型选择。

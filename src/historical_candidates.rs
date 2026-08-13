@@ -91,6 +91,39 @@ pub struct RawHistoricalGameRow {
 pub struct HistoricalCandidateBuildInput {
     pub series_rows: Vec<RawHistoricalSeriesRow>,
     pub game_rows: Vec<RawHistoricalGameRow>,
+    /// M3R-002 只用原始赛事页到 Region 的精确关系做覆盖审计，不在候选阶段生成 canonical identity。
+    #[serde(default)]
+    pub tournament_rows: Vec<RawHistoricalTournamentRow>,
+    /// 旧 eligible corpus 的最小引用投影，仅用于证明成员和时间窗口零重叠。
+    #[serde(default)]
+    pub reference_series_rows: Vec<HistoricalReferenceSeriesRow>,
+    #[serde(default)]
+    pub minimum_recovery_start_utc: Option<DateTime<Utc>>,
+}
+
+/// Leaguepedia Tournaments 的原始 Region 关系；缺失或冲突会保留为覆盖缺口。
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct RawHistoricalTournamentRow {
+    #[serde(
+        rename = "OverviewPage",
+        default,
+        deserialize_with = "deserialize_optional_text"
+    )]
+    pub overview_page: Option<String>,
+    #[serde(
+        rename = "Region",
+        default,
+        deserialize_with = "deserialize_optional_text"
+    )]
+    pub region: Option<String>,
+}
+
+/// 恢复任务只需旧 corpus 的 series identity 与 Scheduled Start，不读取任何特征或预测。
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalReferenceSeriesRow {
+    pub series_id: String,
+    pub scheduled_start_utc: DateTime<Utc>,
 }
 
 /// 尚未猜测 Canonical identity 的完整赛事候选；source key 保持 Leaguepedia 原值。
@@ -159,12 +192,41 @@ pub struct HistoricalCandidateCoverage {
     pub rejection_counts: BTreeMap<HistoricalCandidateRejectionReason, u32>,
 }
 
+/// 原始赛事页的 Region 覆盖；该结果是描述性 source evidence，不代表 competition identity 已解析。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalSourceRegionCoverage {
+    pub raw_tournament_rows: u32,
+    pub resolved_candidate_count: u32,
+    pub missing_candidate_count: u32,
+    pub ambiguous_candidate_count: u32,
+    pub regions: BTreeMap<String, u32>,
+}
+
+/// M3R-002 的零重叠证明；生成器只要发现一个成员或时间越界就整体失败。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HistoricalRecoveryDisjointness {
+    pub minimum_new_start_utc: DateTime<Utc>,
+    pub reference_series_count: u32,
+    pub reference_start_utc: DateTime<Utc>,
+    pub reference_end_utc: DateTime<Utc>,
+    pub new_start_utc: DateTime<Utc>,
+    pub new_end_utc: DateTime<Utc>,
+    pub member_overlap_count: u32,
+    pub temporal_overlap_count: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HistoricalCandidateAudit {
     pub audit_version: u16,
     pub scope: HistoricalCandidateScope,
     pub coverage: HistoricalCandidateCoverage,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_region_coverage: Option<HistoricalSourceRegionCoverage>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_disjointness: Option<HistoricalRecoveryDisjointness>,
     pub candidates: Vec<HistoricalSeriesCandidate>,
     pub rejections: Vec<RejectedHistoricalSeries>,
 }
@@ -181,6 +243,12 @@ pub enum HistoricalCandidateError {
     SeriesOutsideScope(String),
     CountOverflow(&'static str),
     NoCandidates,
+    IncompleteRecoveryContract,
+    EmptyReferenceCorpus,
+    DuplicateReferenceSeries(String),
+    ReferenceSeriesOutsideOldWindow(String),
+    RecoverySeriesOutsideNewWindow(String),
+    RecoveryMemberOverlap(String),
 }
 
 impl fmt::Display for HistoricalCandidateError {
@@ -209,6 +277,30 @@ impl fmt::Display for HistoricalCandidateError {
             Self::NoCandidates => {
                 formatter.write_str("candidate audit produced zero usable series")
             }
+            Self::IncompleteRecoveryContract => formatter.write_str(
+                "reference_series_rows and minimum_recovery_start_utc must be provided together",
+            ),
+            Self::EmptyReferenceCorpus => {
+                formatter.write_str("recovery reference corpus must not be empty")
+            }
+            Self::DuplicateReferenceSeries(series_id) => {
+                write!(
+                    formatter,
+                    "recovery reference corpus contains duplicate series: {series_id}"
+                )
+            }
+            Self::ReferenceSeriesOutsideOldWindow(series_id) => write!(
+                formatter,
+                "reference series is not strictly before the recovery boundary: {series_id}"
+            ),
+            Self::RecoverySeriesOutsideNewWindow(series_id) => write!(
+                formatter,
+                "recovery candidate is earlier than the recovery boundary: {series_id}"
+            ),
+            Self::RecoveryMemberOverlap(series_id) => write!(
+                formatter,
+                "recovery candidate overlaps the reference corpus: {series_id}"
+            ),
         }
     }
 }
@@ -227,10 +319,18 @@ pub fn build_historical_candidate_audit(
         return Err(HistoricalCandidateError::EmptySeriesInput);
     }
 
-    let raw_series_rows = to_u32(input.series_rows.len(), "raw_series_rows")?;
-    let raw_game_rows = to_u32(input.game_rows.len(), "raw_game_rows")?;
+    let HistoricalCandidateBuildInput {
+        series_rows,
+        game_rows,
+        tournament_rows,
+        reference_series_rows,
+        minimum_recovery_start_utc,
+    } = input;
+
+    let raw_series_rows = to_u32(series_rows.len(), "raw_series_rows")?;
+    let raw_game_rows = to_u32(game_rows.len(), "raw_game_rows")?;
     let mut series_groups: BTreeMap<String, Vec<RawHistoricalSeriesRow>> = BTreeMap::new();
-    for (row_index, row) in input.series_rows.into_iter().enumerate() {
+    for (row_index, row) in series_rows.into_iter().enumerate() {
         let match_id = required_match_id(row.match_id.as_deref()).ok_or(
             HistoricalCandidateError::MissingMatchId {
                 dataset: "MatchSchedule",
@@ -241,7 +341,7 @@ pub fn build_historical_candidate_audit(
     }
 
     let mut game_groups: BTreeMap<String, Vec<RawHistoricalGameRow>> = BTreeMap::new();
-    for (row_index, row) in input.game_rows.into_iter().enumerate() {
+    for (row_index, row) in game_rows.into_iter().enumerate() {
         let match_id = required_match_id(row.match_id.as_deref()).ok_or(
             HistoricalCandidateError::MissingMatchId {
                 dataset: "ScoreboardGames",
@@ -293,10 +393,18 @@ pub fn build_historical_candidate_audit(
         &candidates,
         &rejections,
     )?;
+    let source_region_coverage = build_source_region_coverage(&candidates, &tournament_rows)?;
+    let recovery_disjointness = build_recovery_disjointness(
+        &candidates,
+        &reference_series_rows,
+        minimum_recovery_start_utc,
+    )?;
     Ok(HistoricalCandidateAudit {
         audit_version: 1,
         scope,
         coverage,
+        source_region_coverage,
+        recovery_disjointness,
         candidates,
         rejections,
     })
@@ -574,6 +682,143 @@ fn build_coverage(
     })
 }
 
+fn build_source_region_coverage(
+    candidates: &[HistoricalSeriesCandidate],
+    tournament_rows: &[RawHistoricalTournamentRow],
+) -> Result<Option<HistoricalSourceRegionCoverage>, HistoricalCandidateError> {
+    if tournament_rows.is_empty() {
+        return Ok(None);
+    }
+
+    let mut relations: BTreeMap<String, BTreeSet<Option<String>>> = BTreeMap::new();
+    for row in tournament_rows {
+        let Some(overview_page) = non_empty(row.overview_page.as_deref()) else {
+            continue;
+        };
+        relations
+            .entry(overview_page.to_owned())
+            .or_default()
+            .insert(non_empty(row.region.as_deref()).map(str::to_owned));
+    }
+
+    let mut resolved_candidate_count = 0_usize;
+    let mut missing_candidate_count = 0_usize;
+    let mut ambiguous_candidate_count = 0_usize;
+    let mut regions = BTreeMap::new();
+    for candidate in candidates {
+        match relations.get(&candidate.competition_source_key) {
+            Some(values) if values.len() == 1 => match values.iter().next() {
+                Some(Some(region)) => {
+                    resolved_candidate_count += 1;
+                    *regions.entry(region.clone()).or_insert(0) += 1;
+                }
+                _ => missing_candidate_count += 1,
+            },
+            Some(_) => ambiguous_candidate_count += 1,
+            None => missing_candidate_count += 1,
+        }
+    }
+
+    Ok(Some(HistoricalSourceRegionCoverage {
+        raw_tournament_rows: to_u32(tournament_rows.len(), "raw_tournament_rows")?,
+        resolved_candidate_count: to_u32(
+            resolved_candidate_count,
+            "resolved_region_candidate_count",
+        )?,
+        missing_candidate_count: to_u32(missing_candidate_count, "missing_region_candidate_count")?,
+        ambiguous_candidate_count: to_u32(
+            ambiguous_candidate_count,
+            "ambiguous_region_candidate_count",
+        )?,
+        regions,
+    }))
+}
+
+fn build_recovery_disjointness(
+    candidates: &[HistoricalSeriesCandidate],
+    reference_series_rows: &[HistoricalReferenceSeriesRow],
+    minimum_recovery_start_utc: Option<DateTime<Utc>>,
+) -> Result<Option<HistoricalRecoveryDisjointness>, HistoricalCandidateError> {
+    let Some(minimum_new_start_utc) = minimum_recovery_start_utc else {
+        if reference_series_rows.is_empty() {
+            return Ok(None);
+        }
+        return Err(HistoricalCandidateError::IncompleteRecoveryContract);
+    };
+    if reference_series_rows.is_empty() {
+        return Err(HistoricalCandidateError::EmptyReferenceCorpus);
+    }
+
+    let mut reference_ids = BTreeSet::new();
+    for row in reference_series_rows {
+        if !reference_ids.insert(row.series_id.as_str()) {
+            return Err(HistoricalCandidateError::DuplicateReferenceSeries(
+                row.series_id.clone(),
+            ));
+        }
+        if row.scheduled_start_utc >= minimum_new_start_utc {
+            return Err(HistoricalCandidateError::ReferenceSeriesOutsideOldWindow(
+                row.series_id.clone(),
+            ));
+        }
+    }
+
+    for candidate in candidates {
+        if candidate.scheduled_start_utc < minimum_new_start_utc {
+            return Err(HistoricalCandidateError::RecoverySeriesOutsideNewWindow(
+                candidate.series_id.clone(),
+            ));
+        }
+        if reference_ids.contains(candidate.series_id.as_str()) {
+            return Err(HistoricalCandidateError::RecoveryMemberOverlap(
+                candidate.series_id.clone(),
+            ));
+        }
+    }
+
+    let reference_start_utc = reference_series_rows
+        .iter()
+        .map(|row| row.scheduled_start_utc)
+        .min()
+        .expect("non-empty reference corpus was validated");
+    let reference_end_utc = reference_series_rows
+        .iter()
+        .map(|row| row.scheduled_start_utc)
+        .max()
+        .expect("non-empty reference corpus was validated");
+    let new_start_utc = candidates
+        .iter()
+        .map(|row| row.scheduled_start_utc)
+        .min()
+        .expect("candidate audit rejects empty candidate sets");
+    let new_end_utc = candidates
+        .iter()
+        .map(|row| row.scheduled_start_utc)
+        .max()
+        .expect("candidate audit rejects empty candidate sets");
+    if new_start_utc <= reference_end_utc {
+        return Err(HistoricalCandidateError::RecoverySeriesOutsideNewWindow(
+            candidates
+                .iter()
+                .find(|row| row.scheduled_start_utc <= reference_end_utc)
+                .expect("overlap was detected")
+                .series_id
+                .clone(),
+        ));
+    }
+
+    Ok(Some(HistoricalRecoveryDisjointness {
+        minimum_new_start_utc,
+        reference_series_count: to_u32(reference_series_rows.len(), "reference_series_count")?,
+        reference_start_utc,
+        reference_end_utc,
+        new_start_utc,
+        new_end_utc,
+        member_overlap_count: 0,
+        temporal_overlap_count: 0,
+    }))
+}
+
 fn parse_cargo_utc(value: &str) -> Option<DateTime<Utc>> {
     NaiveDateTime::parse_from_str(value.trim(), "%Y-%m-%d %H:%M:%S")
         .ok()
@@ -654,6 +899,9 @@ mod tests {
         HistoricalCandidateBuildInput {
             series_rows: vec![series("league-spring-week1-1")],
             game_rows: games("league-spring-week1-1"),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         }
     }
 
@@ -665,6 +913,64 @@ mod tests {
         assert_eq!(audit.candidates[0].patch, "25.01");
         assert_eq!(audit.candidates[0].winner_team_source_key, "Team A");
         assert!(audit.candidates[0].completed_at_utc > audit.candidates[0].scheduled_start_utc);
+    }
+
+    #[test]
+    fn reports_exact_source_region_coverage_without_resolving_identity() {
+        let mut input = input();
+        input.tournament_rows = vec![RawHistoricalTournamentRow {
+            overview_page: Some("League/2025 Season/Spring".to_owned()),
+            region: Some("Europe".to_owned()),
+        }];
+
+        let audit = build_historical_candidate_audit(scope(), input).expect("valid region input");
+        let coverage = audit
+            .source_region_coverage
+            .expect("source region coverage must be present");
+        assert_eq!(coverage.resolved_candidate_count, 1);
+        assert_eq!(coverage.missing_candidate_count, 0);
+        assert_eq!(coverage.ambiguous_candidate_count, 0);
+        assert_eq!(coverage.regions, BTreeMap::from([("Europe".to_owned(), 1)]));
+        assert_eq!(
+            audit.candidates[0].competition_source_key,
+            "League/2025 Season/Spring"
+        );
+    }
+
+    #[test]
+    fn proves_recovery_member_and_time_disjointness() {
+        let mut input = input();
+        input.reference_series_rows = vec![HistoricalReferenceSeriesRow {
+            series_id: "leaguepedia:old-series".to_owned(),
+            scheduled_start_utc: utc("2024-12-31T23:00:00Z"),
+        }];
+        input.minimum_recovery_start_utc = Some(utc("2025-01-01T00:00:00Z"));
+
+        let audit = build_historical_candidate_audit(scope(), input).expect("disjoint recovery");
+        let proof = audit
+            .recovery_disjointness
+            .expect("recovery proof must be present");
+        assert_eq!(proof.reference_series_count, 1);
+        assert_eq!(proof.member_overlap_count, 0);
+        assert_eq!(proof.temporal_overlap_count, 0);
+        assert!(proof.reference_end_utc < proof.new_start_utc);
+    }
+
+    #[test]
+    fn fails_closed_on_recovery_member_overlap() {
+        let mut input = input();
+        input.reference_series_rows = vec![HistoricalReferenceSeriesRow {
+            series_id: "leaguepedia:league-spring-week1-1".to_owned(),
+            scheduled_start_utc: utc("2024-12-31T23:00:00Z"),
+        }];
+        input.minimum_recovery_start_utc = Some(utc("2025-01-01T00:00:00Z"));
+
+        assert_eq!(
+            build_historical_candidate_audit(scope(), input),
+            Err(HistoricalCandidateError::RecoveryMemberOverlap(
+                "leaguepedia:league-spring-week1-1".to_owned()
+            ))
+        );
     }
 
     #[test]
@@ -683,6 +989,9 @@ mod tests {
         let mut mixed = HistoricalCandidateBuildInput {
             series_rows: vec![series("valid"), series("bo1")],
             game_rows: [games("valid"), games("bo1")].concat(),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         };
         mixed.series_rows[1].best_of = Some(1);
         let audit =
@@ -699,6 +1008,9 @@ mod tests {
         let mut input = HistoricalCandidateBuildInput {
             series_rows: vec![series("valid"), series("conflict")],
             game_rows: [games("valid"), games("conflict")].concat(),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         };
         input.game_rows[4].patch = Some("25.02".to_owned());
         let audit = build_historical_candidate_audit(scope(), input).expect("valid row remains");
@@ -713,6 +1025,9 @@ mod tests {
         let mut count_input = HistoricalCandidateBuildInput {
             series_rows: vec![series("valid"), series("count")],
             game_rows: [games("valid"), games("count")].concat(),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         };
         count_input.game_rows.pop();
         let count_audit =
@@ -725,6 +1040,9 @@ mod tests {
         let mut sequence_input = HistoricalCandidateBuildInput {
             series_rows: vec![series("valid"), series("sequence")],
             game_rows: [games("valid"), games("sequence")].concat(),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         };
         sequence_input.game_rows[4].game_number = Some(1);
         let sequence_audit =
@@ -740,6 +1058,9 @@ mod tests {
         let mut input = HistoricalCandidateBuildInput {
             series_rows: vec![series("valid"), series("winner")],
             game_rows: [games("valid"), games("winner")].concat(),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         };
         input.series_rows[1].winner = Some(2);
         let audit = build_historical_candidate_audit(scope(), input).expect("valid remains");
@@ -754,6 +1075,9 @@ mod tests {
         let forward_input = HistoricalCandidateBuildInput {
             series_rows: vec![series("a"), series("b")],
             game_rows: [games("a"), games("b")].concat(),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         };
         let mut reverse_input = forward_input.clone();
         reverse_input.series_rows.reverse();
@@ -796,6 +1120,9 @@ mod tests {
         let input = HistoricalCandidateBuildInput {
             series_rows: vec![series("valid"), series("missing-games")],
             game_rows: games("valid"),
+            tournament_rows: vec![],
+            reference_series_rows: vec![],
+            minimum_recovery_start_utc: None,
         };
         let audit = build_historical_candidate_audit(scope(), input).expect("valid remains");
         assert_eq!(audit.coverage.candidate_count, 1);
