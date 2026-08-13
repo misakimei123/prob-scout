@@ -27,3 +27,4 @@
 - MODEL-002 Elo 使用全局 Canonical Team rating pool 和固定 `1500/400/K20`；development 按时间先预测后更新，跨赛区不重置，同队同一开赛时刻多场 fail closed，final test 保持 sealed。
 - MODEL-003 Market Baseline 只消费已验证 linked subset；双方分别取统一 CLOB `Game Start - 15m` cutoff 前最后一个官方 `p`，按显式 outcome 顺序映射且不归一化。Grade C `p` 永远与 ask/bid/depth/fee 和可成交 PnL 分开报告，不同时间范围的评估母体不得直接比较指标。
 - MODEL-004 统计模型使用 train-only `StandardScaler + LogisticRegression`；输入只允许双方 `T-15m` form 差值、availability 差和 BO5 标记，按显式 team ID 对齐。缺失胜率编码为中性 0.5 并保留 availability，不代表真实 50%；validation/calibration 只评估 raw probability，校准留给 MODEL-005。
+- MODEL-005 只对冻结的 MODEL-004 raw probability 拟合 sigmoid；唯一拟合标签来自 calibration split。artifact 必须保存可重放参数与 raw/calibrated probability；calibration 指标是 fit diagnostic，train/validation 转换不是 out-of-time 评估，final test 保持 sealed。

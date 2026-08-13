@@ -96,6 +96,10 @@ _Avoid_: Executable market price, ask baseline, historical fill
 只在 train split 上拟合的简单可解释统计模型对公开 Development Feature Snapshot 输出的未校准 `team_1_win` 概率；validation/calibration 只评估或留给后续校准，final test 在冻结前保持 sealed。
 _Avoid_: Calibrated probability, final model, causal effect
 
+**Calibrated Statistical Probability**:
+以冻结的 Raw Statistical Probability 为唯一输入、只用公开 calibration split label 拟合的单调概率映射；calibration split 指标属于拟合诊断，必须由后续 Walk-forward 才能形成 out-of-time 证据。
+_Avoid_: Retrained model, final-test calibration, guaranteed frequency
+
 **Data Quality Gate**:
 在模型开发前对 eligible series 数量、时间/赛区/Patch 覆盖、关键字段缺失、时间防泄漏、异常分布和历史市场真实性等级作出的可重复判定。`NotReadyForM3` 表示数据构建任务可以完成，但模型阶段仍被证据门禁阻塞。
 _Avoid_: Report completed, pipeline passed

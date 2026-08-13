@@ -83,3 +83,7 @@ MODEL-003 只对人工确认 `Matched` 且具有 Market Resolution Link 的公�
 ## 2026-08-13 — 第一版统计模型使用 train-only form-difference LogisticRegression
 
 MODEL-004 使用 scikit-learn `StandardScaler + LogisticRegression`，只在 train 上拟合双方 `T-15m` prior-series/game/same-Patch form 差值、历史量差、rest 差、availability 差与 BO5 标记。无历史胜率在模型矩阵中使用中性 0.5，同时以 availability 差值保留缺失语义；validation/calibration 不参与任何参数拟合，输出保持 raw uncalibrated。原因是该方案简单、可解释、可重放且不自行实现优化器，并避免把 unavailable 误作 0% 胜率。影响是 MODEL-005 可独立消费 calibration split 做校准；MODEL-004 指标不能替代 Walk-forward 或 Gate 1 结论。
+
+## 2026-08-13 — 校准器只消费冻结 raw probability 与 calibration label
+
+MODEL-005 使用 scikit-learn `CalibratedClassifierCV(method="sigmoid")`，以 `FrozenEstimator` 包装无训练参数的 raw-probability identity classifier，只从 calibration split 的 748 个 label 拟合单调 sigmoid。方法在看指标前固定，不用同一 calibration split 选择 isotonic；artifact 同时保存 raw/calibrated probability、`a`/`b`、输入模型 hash 和 calibration curve。原因是校准必须与 MODEL-004 train 拟合隔离，并避免更高自由度映射在当前样本上过拟合。影响是 calibration 指标只能视为 in-sample fit diagnostic；train/validation 的 calibrated 输出只用于映射重放，MODEL-006 才能给出 out-of-time 证据，final test 继续 sealed。

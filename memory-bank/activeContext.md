@@ -25,10 +25,11 @@
 - `MODEL-002` 已实现固定 `1500/400/K20` 的全局 chronological Elo Baseline。1,422 条 development 逐场先预测后更新，覆盖 319 个 Canonical Team；train/validation/calibration Brier 为 `0.2422573700/0.2427027093/0.2217084843`，Log Loss 为 `0.6775746090/0.6784341773/0.6348542326`。356 条 final test 未读取成员、未计算指标，artifact SHA-256 为 `49e71bdbc29b19f964cdd4f7db08f7f46d6b21eff981f566efd2541590255a40`。
 - `MODEL-003` 已实现固定 CLOB `Game Start - 15m` cutoff 的 Market Baseline。只消费 16 条公开 Development linked series，按显式 outcome 顺序选择双方最后一个 Grade C `{t,p}` point；train/validation/calibration Brier 为 `0.1544916667/0.0833964286/0.2553708333`，Log Loss 为 `0.4658236962/0.3087825440/0.7434727676`。兼容 split 的 7 条 final test 保持 sealed，当前 2025H1 corpus 的 356 条 final test 未消费；artifact SHA-256 为 `6dd7db70e085070d3e910e30f2ee105e6222b958f6a01cd2cca2348183432d9a`。
 - `MODEL-004` 已实现 scikit-learn train-only `StandardScaler + LogisticRegression`。10 个可解释输入均为双方 `T-15m` form 差值/availability/BO5 标记；325 条 train 拟合，validation/calibration 只评估 raw probability。train/validation/calibration Brier 为 `0.2211313304/0.2383272878/0.2193676117`，Log Loss 为 `0.6345254046/0.6712635152/0.6294449007`；356 条 final test 保持 sealed，artifact SHA-256 为 `7035396395c726232fe07e5b119b5d7c4cf0b39d60fef2fa2a2a77a789ba2611`。
+- `MODEL-005` 已固定消费 MODEL-004 v2 raw probability，用 scikit-learn `CalibratedClassifierCV(method="sigmoid") + FrozenEstimator` 只在 748 条 calibration label 上拟合。calibration fit diagnostic 的 raw/calibrated Brier 为 `0.2193676117/0.2161185633`，Log Loss 为 `0.6294449007/0.6221717139`；10-bin curve、1,422 条 raw/calibrated Development prediction 和可重放 `a/b` 已写入 artifact。356 条 final test 保持 sealed，artifact SHA-256 为 `3ba241cbcbfbd397591daf7d8f0f7cefb905c46f5940928f4b0692aa95ea16df`。
 
 ## 下一任务
 
-下一任务是 `MODEL-005` 概率校准，只能用公开 calibration split 拟合开源校准器，必须同时保留 raw/calibrated probability 与校准 artifact；不得在 final test 拟合或提前进入 Walk-forward、策略、PnL、执行开发。
+下一任务是 `MODEL-006` Walk-forward 评估。必须按时间窗口重新建立训练/校准/评估边界，完整比较 Constant、Elo、raw statistical 与 calibrated statistical probability；不得读取 sealed final test、只展示最好窗口或提前作 Gate 1、策略、PnL、执行结论。
 
 关键验收边界：
 
@@ -58,4 +59,4 @@
 
 ## 首次检查
 
-进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/TASK_BREAKDOWN.md` 的 `MODEL-005`、`docs/STATISTICAL_MODEL.md`、最新 statistical-model artifact/manifest、Feature/Split manifest 与 `CONTEXT.md`；不得读取 sealed final test IDs 或提前进入后续模型任务。
+进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/TASK_BREAKDOWN.md` 的 `MODEL-006`、`docs/STATISTICAL_MODEL.md`、`docs/PROBABILITY_CALIBRATION.md`、最新 statistical/calibration artifact/manifest、Feature/Split manifest 与 `CONTEXT.md`；不得读取 sealed final test IDs 或提前进入 Gate 1/策略任务。

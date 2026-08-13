@@ -330,12 +330,13 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 - 验收：训练流程固定随机种子和 artifact metadata；validation 结果可重复。
 - 证据：2026-08-13 新增 `research/model004_statistical_model.py`、`research/build_statistical_model.ps1`、`tests/test_model004_statistical_model.py` 与 `docs/STATISTICAL_MODEL.md`。使用 scikit-learn `Pipeline(StandardScaler, LogisticRegression)`，仅在 325 条 train 上拟合 10 个双方 `T-15m` form 差值特征，随机种子固定 `20260813`；validation/calibration 只评估 raw uncalibrated probability。train/validation/calibration Brier 为 `0.2211313304/0.2383272878/0.2193676117`，Log Loss 为 `0.6345254046/0.6712635152/0.6294449007`；356 条 final test 保持 sealed。8 个定向测试覆盖 team ID 对齐、显式缺失语义、source-time/target-field/T-15m 防泄漏、validation label 隔离、确定性与 final seal；27 个模型测试、84 个 Rust tests、格式/静态检查、三份 manifest 校验、双构建确定性和 `git diff --check` 通过。artifact SHA-256 为 `7035396395c726232fe07e5b119b5d7c4cf0b39d60fef2fa2a2a77a789ba2611`。
 
-### [ ] MODEL-005 概率校准
+### [x] MODEL-005 概率校准
 
 - 依赖：MODEL-004
 - 输出：raw probability、calibrated probability 和 calibration artifact。
 - 要求：使用开源校准实现；不得在 final test 拟合。
 - 验收：校准前后 Brier、Log Loss 和 calibration curve 可比较。
+- 证据：2026-08-13 新增 `research/model005_probability_calibration.py`、`research/build_probability_calibration.ps1`、`tests/test_model005_probability_calibration.py` 与 `docs/PROBABILITY_CALIBRATION.md`。固定消费不可变 MODEL-004 v2 artifact，使用 scikit-learn `CalibratedClassifierCV(method="sigmoid") + FrozenEstimator`，只从 748 条 calibration label 拟合单调映射；非 calibration label 不影响拟合参数。calibration fit diagnostic 的 raw/calibrated Brier 为 `0.2193676117/0.2161185633`，Log Loss 为 `0.6294449007/0.6221717139`，10 个 quantile-bin curve 均可比较；指标明确不作为 out-of-time Gate 证据。artifact 同时保存 1,422 条 Development raw/calibrated probability 和可重放 `a/b` 参数，356 条 final test 继续 sealed。8 个定向测试覆盖拟合隔离、确定性、曲线/指标、单调映射、输入 hash、类别下限和 final seal；累计 35 个模型测试、84 个 Rust tests、Ruff、`cargo fmt/check --locked`、PowerShell parser、artifact 合同与 `git diff --check` 均通过。真实 artifact 双构建 SHA-256 一致，为 `3ba241cbcbfbd397591daf7d8f0f7cefb905c46f5940928f4b0692aa95ea16df`。
 
 ### [ ] MODEL-006 Walk-forward 评估
 
@@ -613,5 +614,6 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 28. `MODEL-002`：已实现全局 chronological Elo Baseline；1,422 条 development 逐场先预测后更新，首次参赛与跨赛区合同已测试，356 条 final test 继续 sealed。
 29. `MODEL-003`：已实现统一 `Game Start - 15m` cutoff 的 Grade C Market Baseline；16 场公开 Development linked series 的概率信号可重复计算，`p` 与 ask/depth/fee 明确分离，兼容 split 的 7 场 final test 继续 sealed。
 30. `MODEL-004`：已实现 train-only 可解释 LogisticRegression；10 个双方赛前 form 差值特征经过 train-only StandardScaler，validation/calibration raw probability 可重复评估，356 场 final test 继续 sealed。
+31. `MODEL-005`：已使用冻结的 MODEL-004 raw probability 与公开 calibration label 拟合 sigmoid；raw/calibrated 指标和 10-bin curve 可比较，拟合诊断与 out-of-time 证据严格分离，356 场 final test 继续 sealed。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-004`。下一任务是 `MODEL-005` 概率校准；不得提前进入 Walk-forward、Gate 1、策略、PnL 或执行开发。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-005`。下一任务是 `MODEL-006` Walk-forward 评估；不得提前 release final test、进入 Gate 1 决策、策略、PnL 或执行开发。
