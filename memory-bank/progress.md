@@ -28,9 +28,10 @@
 - M3：`MODEL-001` 训练期总体先验 Constant Baseline；325 条 train 得到 `P(team_1_win)=0.5230769231`，validation/calibration Brier 与 Log Loss 可重复计算，356 条 final test 保持 sealed。
 - M3：`MODEL-002` 全局 chronological Elo Baseline；1,422 条 development 逐场先预测后更新，覆盖 319 个队伍，首次参赛/跨赛区/同起始冲突合同已验证，356 条 final test 保持 sealed。
 - M3：`MODEL-003` 同一赛前 cutoff 的 Market Baseline；16 条公开 Development linked series 使用 Grade C `p` 信号，明确排除 ask/depth/fee/PnL 语义，兼容 split 的 7 条 final test 保持 sealed。
+- M3：`MODEL-004` train-only 可解释 LogisticRegression；10 个 `T-15m` team-form 差值特征，固定随机种子和完整 artifact metadata，validation/calibration raw probability 可重复，356 条 final test 保持 sealed。
 
 ## 待完成
 
-- M3：下一任务仅执行 `MODEL-004` 第一版统计模型；保持 final test sealed，不提前进入校准、Walk-forward、策略或执行开发。
+- M3：下一任务仅执行 `MODEL-005` 概率校准；保持 final test sealed，不提前进入 Walk-forward、Gate 1、策略或执行开发。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。

@@ -322,12 +322,13 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 - 验收：明确概率口径与交易 ask 口径不同；无可靠市场价格时不伪造基准。
 - 证据：2026-08-13 新增 `research/model003_market_baseline.py`、`research/build_market_baseline.ps1`、`tests/test_model003_market_baseline.py` 与 `docs/MARKET_BASELINE.md`。只消费 DATA-008 人工确认 `Matched`、具有 Market Resolution Link 且 DATA-009 双方 price history 完整的公开 Development linked subset；双方分别取不晚于统一 CLOB `Game Start - 15m` cutoff 的最后一个 `p`，按显式 outcome 顺序映射到 `team_1_win`，不做归一化。实际纳入 train/validation/calibration `3/7/6` 场，Brier 为 `0.1544916667/0.0833964286/0.2553708333`，Log Loss 为 `0.4658236962/0.3087825440/0.7434727676`；兼容 split 的 7 场 final test 继续 sealed，当前 2025H1 模型语料的 356 场 final test 未读取。artifact 明确 `p` 不是 ask/bid/depth/fee 或可成交价格，并禁止 ROI/PnL 解释；7 个定向测试、19 个模型测试、84 个 Rust tests、格式/静态检查、三份 manifest 校验、双构建确定性和 `git diff --check` 通过。artifact SHA-256 为 `6dd7db70e085070d3e910e30f2ee105e6222b958f6a01cd2cca2348183432d9a`。
 
-### [ ] MODEL-004 训练第一版统计模型
+### [x] MODEL-004 训练第一版统计模型
 
 - 依赖：MODEL-002、HIST-005
 - 输出：一个简单可解释模型。
 - 要求：优先使用成熟开源 ML 库；不自行实现优化器和通用算法。
 - 验收：训练流程固定随机种子和 artifact metadata；validation 结果可重复。
+- 证据：2026-08-13 新增 `research/model004_statistical_model.py`、`research/build_statistical_model.ps1`、`tests/test_model004_statistical_model.py` 与 `docs/STATISTICAL_MODEL.md`。使用 scikit-learn `Pipeline(StandardScaler, LogisticRegression)`，仅在 325 条 train 上拟合 10 个双方 `T-15m` form 差值特征，随机种子固定 `20260813`；validation/calibration 只评估 raw uncalibrated probability。train/validation/calibration Brier 为 `0.2211313304/0.2383272878/0.2193676117`，Log Loss 为 `0.6345254046/0.6712635152/0.6294449007`；356 条 final test 保持 sealed。8 个定向测试覆盖 team ID 对齐、显式缺失语义、source-time/target-field/T-15m 防泄漏、validation label 隔离、确定性与 final seal；27 个模型测试、84 个 Rust tests、格式/静态检查、三份 manifest 校验、双构建确定性和 `git diff --check` 通过。artifact SHA-256 为 `7035396395c726232fe07e5b119b5d7c4cf0b39d60fef2fa2a2a77a789ba2611`。
 
 ### [ ] MODEL-005 概率校准
 
@@ -611,5 +612,6 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 27. `MODEL-001`：已实现训练期总体先验 Constant Baseline；固定 `P(team_1_win)=0.5230769231`，development Brier/Log Loss 可重复计算，356 条 final test 继续 sealed。
 28. `MODEL-002`：已实现全局 chronological Elo Baseline；1,422 条 development 逐场先预测后更新，首次参赛与跨赛区合同已测试，356 条 final test 继续 sealed。
 29. `MODEL-003`：已实现统一 `Game Start - 15m` cutoff 的 Grade C Market Baseline；16 场公开 Development linked series 的概率信号可重复计算，`p` 与 ask/depth/fee 明确分离，兼容 split 的 7 场 final test 继续 sealed。
+30. `MODEL-004`：已实现 train-only 可解释 LogisticRegression；10 个双方赛前 form 差值特征经过 train-only StandardScaler，validation/calibration raw probability 可重复评估，356 场 final test 继续 sealed。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-003`。下一任务是 `MODEL-004` 第一版统计模型；不得提前进入概率校准、Walk-forward、策略、PnL 或执行开发。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-004`。下一任务是 `MODEL-005` 概率校准；不得提前进入 Walk-forward、Gate 1、策略、PnL 或执行开发。

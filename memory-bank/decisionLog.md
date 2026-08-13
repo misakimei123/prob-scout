@@ -79,3 +79,7 @@ MODEL-002 固定 initial rating 1500、scale 400、K-factor 20，对 train/valid
 ## 2026-08-13 — Market Baseline 保留 Grade C 原始 p 并与 ask 分离
 
 MODEL-003 只对人工确认 `Matched` 且具有 Market Resolution Link 的公开 Development series，在统一 CLOB `Game Start - 15m` cutoff 分别选择双方官方 price history 的最后一个 `p`，按显式 outcome 顺序映射到 `team_1_win`，不做归一化。缺失 point、未来 point、未确认映射或 outcome/resolution 冲突均 fail closed。原因是 DATA-009 没有历史 bid/ask、depth 或 fee，任何补成 ask 或可成交成本的处理都会伪造证据。影响是当前 16 场 linked sample 只支持 Brier/Log Loss 信号研究；不得计算历史 ROI/PnL，也不得与不同母体的 2025H1 Constant/Elo 指标直接比较。
+
+## 2026-08-13 — 第一版统计模型使用 train-only form-difference LogisticRegression
+
+MODEL-004 使用 scikit-learn `StandardScaler + LogisticRegression`，只在 train 上拟合双方 `T-15m` prior-series/game/same-Patch form 差值、历史量差、rest 差、availability 差与 BO5 标记。无历史胜率在模型矩阵中使用中性 0.5，同时以 availability 差值保留缺失语义；validation/calibration 不参与任何参数拟合，输出保持 raw uncalibrated。原因是该方案简单、可解释、可重放且不自行实现优化器，并避免把 unavailable 误作 0% 胜率。影响是 MODEL-005 可独立消费 calibration split 做校准；MODEL-004 指标不能替代 Walk-forward 或 Gate 1 结论。
