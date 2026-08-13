@@ -308,17 +308,19 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 - 验收：final test 指标可计算。
 - 证据：2026-08-13 新增 `pyproject.toml`、`uv.lock`、`research/model001_constant_baseline.py`、`research/build_constant_baseline.ps1`、`tests/test_model001_constant_baseline.py` 与 `docs/CONSTANT_BASELINE.md`。使用 scikit-learn `DummyClassifier(strategy="prior")` 仅从 325 条 train label 拟合 `P(team_1_win)=0.5230769231`；validation 349 条的 Brier/Log Loss 为 `0.2479537478/0.6890521453`，calibration 748 条为 `0.2474473942/0.6880387182`。356 条 final test 保持 sealed，artifact 不含 final IDs 或指标，但记录 Brier/Log Loss 计算合同及 release 所需三个冻结 hash。5 个 Python 定向测试覆盖训练隔离、final ID 拒绝、winner 校验和单类 slice 指标；真实 artifact 双构建 hash 一致，SHA-256 为 `39e55ce8f3f5e17bf69ba9c44c6eba994336e1738cc608aeb4431d49b940b3b2`。
 
-### [ ] MODEL-002 实现 Elo Baseline
+### [x] MODEL-002 实现 Elo Baseline
 
 - 依赖：MODEL-001
 - 输出：按比赛时间顺序更新的 Elo 概率。
 - 验收：某场比赛只能使用之前比赛更新的 rating；单元测试覆盖首次参赛和跨赛区场景。
+- 证据：2026-08-13 新增 `research/model002_elo_baseline.py`、`research/build_elo_baseline.ps1`、`tests/test_model002_elo_baseline.py` 与 `docs/ELO_BASELINE.md`。全局 Elo 固定 initial/scale/K 为 `1500/400/20`，1,422 条 development Series Result 按 `(Scheduled Start, series_id)` 严格先预测后更新；首次参赛使用 1500，跨赛区沿用 Canonical Team rating，同队同一开赛时刻多场记录 fail closed。真实构建覆盖 319 个队伍，train/validation/calibration Brier 分别为 `0.2422573700/0.2427027093/0.2217084843`，Log Loss 分别为 `0.6775746090/0.6784341773/0.6348542326`；356 条 final test 保持 sealed。7 个定向测试覆盖首次参赛、pre-update prediction、当前赛果隔离、跨赛区、乱序、同起始冲突与 final ID 拒绝；artifact 双构建 SHA-256 一致，为 `49e71bdbc29b19f964cdd4f7db08f7f46d6b21eff981f566efd2541590255a40`。
 
-### [ ] MODEL-003 实现 Market Baseline
+### [x] MODEL-003 实现 Market Baseline
 
 - 依赖：DATA-009、MODEL-001
 - 输出：同一信息时点的市场概率基准。
 - 验收：明确概率口径与交易 ask 口径不同；无可靠市场价格时不伪造基准。
+- 证据：2026-08-13 新增 `research/model003_market_baseline.py`、`research/build_market_baseline.ps1`、`tests/test_model003_market_baseline.py` 与 `docs/MARKET_BASELINE.md`。只消费 DATA-008 人工确认 `Matched`、具有 Market Resolution Link 且 DATA-009 双方 price history 完整的公开 Development linked subset；双方分别取不晚于统一 CLOB `Game Start - 15m` cutoff 的最后一个 `p`，按显式 outcome 顺序映射到 `team_1_win`，不做归一化。实际纳入 train/validation/calibration `3/7/6` 场，Brier 为 `0.1544916667/0.0833964286/0.2553708333`，Log Loss 为 `0.4658236962/0.3087825440/0.7434727676`；兼容 split 的 7 场 final test 继续 sealed，当前 2025H1 模型语料的 356 场 final test 未读取。artifact 明确 `p` 不是 ask/bid/depth/fee 或可成交价格，并禁止 ROI/PnL 解释；7 个定向测试、19 个模型测试、84 个 Rust tests、格式/静态检查、三份 manifest 校验、双构建确定性和 `git diff --check` 通过。artifact SHA-256 为 `6dd7db70e085070d3e910e30f2ee105e6222b958f6a01cd2cca2348183432d9a`。
 
 ### [ ] MODEL-004 训练第一版统计模型
 
@@ -607,5 +609,7 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 25. `HIST-009`：已对 2,061 candidates 执行 Scheduled Start 时点 identity coverage；现有 2026 evidence 对 2025H1 无 active period，0 条 fully resolved，614 条聚合补证队列完整保留。
 26. `HIST-010`：以 exact TeamRedirects/Tournaments relation 补充事件时点 identity evidence，得到 1,778 eligible Series Result 并重建 Feature/Split/Quality；M2 Gate 更新为 `ReadyForM3`。
 27. `MODEL-001`：已实现训练期总体先验 Constant Baseline；固定 `P(team_1_win)=0.5230769231`，development Brier/Log Loss 可重复计算，356 条 final test 继续 sealed。
+28. `MODEL-002`：已实现全局 chronological Elo Baseline；1,422 条 development 逐场先预测后更新，首次参赛与跨赛区合同已测试，356 条 final test 继续 sealed。
+29. `MODEL-003`：已实现统一 `Game Start - 15m` cutoff 的 Grade C Market Baseline；16 场公开 Development linked series 的概率信号可重复计算，`p` 与 ask/depth/fee 明确分离，兼容 split 的 7 场 final test 继续 sealed。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`。下一任务是 `MODEL-002` Elo Baseline；仍不得提前进入 MODEL-003、统计模型、策略、PnL 或执行开发。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-003`。下一任务是 `MODEL-004` 第一版统计模型；不得提前进入概率校准、Walk-forward、策略、PnL 或执行开发。

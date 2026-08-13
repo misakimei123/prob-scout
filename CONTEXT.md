@@ -84,6 +84,14 @@ _Avoid_: Hidden flag, test set label
 只用 train split 的二元 label 总体比例，对所有赛事输出同一个 `team_1_win` 概率的无特征基准；validation/calibration 只评估，final test 在冻结前保持 sealed。
 _Avoid_: 50% hard label, all-split prior, market baseline
 
+**Elo Baseline**:
+按 `(Scheduled Start, series_id)` 顺序对 development Series Result 逐场先预测后更新的全局队伍 rating 基准；首次参赛使用固定初始 rating，跨赛区不重置，同队同一开赛时刻的多场记录因结果先后不可证而 fail closed。
+_Avoid_: Post-match prediction, region reset, unordered Elo
+
+**Market Baseline**:
+对人工确认 `Matched` 且具有 Market Resolution Link 的赛事，在统一赛前 cutoff 分别选取双方官方 price history 的最后一个 `p`，再按显式 outcome 顺序映射到 `team_1_win` 的 Grade C 概率信号基准；它不是可成交 ask，也不支持历史 PnL。
+_Avoid_: Executable market price, ask baseline, historical fill
+
 **Data Quality Gate**:
 在模型开发前对 eligible series 数量、时间/赛区/Patch 覆盖、关键字段缺失、时间防泄漏、异常分布和历史市场真实性等级作出的可重复判定。`NotReadyForM3` 表示数据构建任务可以完成，但模型阶段仍被证据门禁阻塞。
 _Avoid_: Report completed, pipeline passed

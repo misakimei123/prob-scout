@@ -24,3 +24,5 @@
 - HIST-010 historical identity 只接受 exact TeamRedirects/Tournaments relation，并与具体 MatchSchedule 事件时点组合成 1 秒 period；Canonical ID 使用 exact source identity hash，不使用 slug/fuzzy/source-key fallback。批量 identity coverage 必须先全表校验一次，再使用 validated resolver，避免逐 occurrence 重复扫描。
 - 大规模 HIST-004 source-key 查询按固定 team batch 分页；跨 batch 的同一 `(MatchId, game number)` 只有事实签名一致才去重，冲突 fail closed。
 - M3 Python 研究环境使用 `pyproject.toml` + `uv.lock`；MODEL-001 Constant Baseline 只拟合 train split 的 `team_1_win` class prior，validation/calibration 只评估，final test 保持 sealed。
+- MODEL-002 Elo 使用全局 Canonical Team rating pool 和固定 `1500/400/K20`；development 按时间先预测后更新，跨赛区不重置，同队同一开赛时刻多场 fail closed，final test 保持 sealed。
+- MODEL-003 Market Baseline 只消费已验证 linked subset；双方分别取统一 CLOB `Game Start - 15m` cutoff 前最后一个官方 `p`，按显式 outcome 顺序映射且不归一化。Grade C `p` 永远与 ask/bid/depth/fee 和可成交 PnL 分开报告，不同时间范围的评估母体不得直接比较指标。

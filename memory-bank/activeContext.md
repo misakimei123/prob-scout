@@ -22,10 +22,12 @@
 - HIST-003–HIST-006 已重建为 1,778 Series/Feature rows、325/349/748/356 split；覆盖 170 个 UTC 日期、13 Patch、6 Region，3,556 个 team-side source time leakage 为 0。Series/Feature/Split/Quality SHA-256 分别为 `9e7a1c2d23b13570f16329e733a13457c997826bbde9fcb6fa2ce0c00334ae99`、`3a29cbfc7a9311b6bf36837da0fc2c24df115175460251bab862c6de89d50ab3`、`1ff428ae74f1a4a7d32dc033244f0aa74ff6268a818303258a7a96c01d699258`、`9a32f02e0e1a348ce01a7603163b8ac55bb14bdfd59975f2d40852cd45b92342`。
 - 最近验证：Identity/Series/Feature/Quality 重放一致；33 个 identity raw、40 个 feature raw、全部 upstream/output hash 与五层 manifest 引用一致。全仓 84 个 Rust tests、`cargo fmt --check`、`cargo check --locked`、三个变更脚本 parser 与 `git diff --check` 通过。M2 Gate 依据预注册 1,778/500 volume 硬门槛更新为 `ReadyForM3`；单一年份、41.09% same-Patch unavailable 和 50/50 Grade C market evidence 仍是明确限制。
 - `MODEL-001` 已使用 scikit-learn `DummyClassifier(strategy="prior")` 实现训练期总体先验 Constant Baseline。只消费 325 条 train label，得到 `P(team_1_win)=0.5230769231`；validation 349 条 Brier/Log Loss 为 `0.2479537478/0.6890521453`，calibration 748 条为 `0.2474473942/0.6880387182`。356 条 final test 未读取成员、未计算指标，artifact SHA-256 为 `39e55ce8f3f5e17bf69ba9c44c6eba994336e1738cc608aeb4431d49b940b3b2`。
+- `MODEL-002` 已实现固定 `1500/400/K20` 的全局 chronological Elo Baseline。1,422 条 development 逐场先预测后更新，覆盖 319 个 Canonical Team；train/validation/calibration Brier 为 `0.2422573700/0.2427027093/0.2217084843`，Log Loss 为 `0.6775746090/0.6784341773/0.6348542326`。356 条 final test 未读取成员、未计算指标，artifact SHA-256 为 `49e71bdbc29b19f964cdd4f7db08f7f46d6b21eff981f566efd2541590255a40`。
+- `MODEL-003` 已实现固定 CLOB `Game Start - 15m` cutoff 的 Market Baseline。只消费 16 条公开 Development linked series，按显式 outcome 顺序选择双方最后一个 Grade C `{t,p}` point；train/validation/calibration Brier 为 `0.1544916667/0.0833964286/0.2553708333`，Log Loss 为 `0.4658236962/0.3087825440/0.7434727676`。兼容 split 的 7 条 final test 保持 sealed，当前 2025H1 corpus 的 356 条 final test 未消费；artifact SHA-256 为 `6dd7db70e085070d3e910e30f2ee105e6222b958f6a01cd2cca2348183432d9a`。
 
 ## 下一任务
 
-下一任务是 `MODEL-002` Elo Baseline，必须按比赛时间顺序更新 rating，并覆盖首次参赛和跨赛区测试；只消费 development split，不读取 sealed final test IDs。不得提前进入 MODEL-003、统计模型、策略、PnL 或执行开发。
+下一任务是 `MODEL-004` 第一版统计模型，只能消费公开 development Feature Snapshot/Series Result，使用简单可解释的成熟开源 ML 实现并固定随机种子与 artifact metadata。不得提前进入概率校准、Walk-forward、策略、PnL 或执行开发。
 
 关键验收边界：
 
@@ -55,4 +57,4 @@
 
 ## 首次检查
 
-进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/TASK_BREAKDOWN.md` 的 `MODEL-002`、`docs/CONSTANT_BASELINE.md`、`docs/HISTORICAL_IDENTITY_EVIDENCE.md`、最新 data-quality report、`docs/TEMPORAL_SPLIT_DATASET.md` 与 `CONTEXT.md`；不得读取 sealed final test IDs 或提前进入后续模型任务。
+进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/TASK_BREAKDOWN.md` 的 `MODEL-004`、`docs/MARKET_BASELINE.md`、`docs/ELO_BASELINE.md`、`docs/CONSTANT_BASELINE.md`、最新 Feature/Split manifest、data-quality report 与 `CONTEXT.md`；不得读取 sealed final test IDs 或提前进入后续模型任务。

@@ -71,3 +71,11 @@ HIST-010 只用 `TeamRedirects.AllName -> canonical page` 和 `Tournaments.Overv
 ## 2026-08-13 — Constant Baseline 只拟合 train class prior
 
 MODEL-001 使用 scikit-learn `DummyClassifier(strategy="prior")`，正类固定为 `team_1_win`，只从 train split 的 label 总体比例拟合一个无特征常数概率。validation/calibration 只评估同一概率，final test 在冻结前只保留 count、membership commitment 和 access policy。原因是 50% 虽简单但忽略当前标签方向基准率，而使用所有 development labels 会把 validation/calibration 信息泄漏进模型。影响是后续 Elo/统计模型统一与 train-prior Constant Baseline 比较；final-test release 仍需要 model artifact/config/evaluation code 三个 SHA-256，MODEL-001 不提前执行。
+
+## 2026-08-13 — Elo 使用全局 chronological rating pool
+
+MODEL-002 固定 initial rating 1500、scale 400、K-factor 20，对 train/validation/calibration 的 Series Result 按 `(Scheduled Start, series_id)` 逐场先预测后更新。首次参赛使用初始 rating，跨赛区沿用同一 Canonical Team rating，不引入 region reset 或未经验证的赛区修正；同队同一开赛时刻出现多场时 fail closed。原因是 Elo baseline 必须只使用当前比赛前可得赛果，同时保留国际赛事对全局队伍强弱的直接比较。影响是 development prediction 可 chronological 更新，但 final test 仍需冻结后显式 release；当前参数是固定 baseline，不是 validation 调优结果。
+
+## 2026-08-13 — Market Baseline 保留 Grade C 原始 p 并与 ask 分离
+
+MODEL-003 只对人工确认 `Matched` 且具有 Market Resolution Link 的公开 Development series，在统一 CLOB `Game Start - 15m` cutoff 分别选择双方官方 price history 的最后一个 `p`，按显式 outcome 顺序映射到 `team_1_win`，不做归一化。缺失 point、未来 point、未确认映射或 outcome/resolution 冲突均 fail closed。原因是 DATA-009 没有历史 bid/ask、depth 或 fee，任何补成 ask 或可成交成本的处理都会伪造证据。影响是当前 16 场 linked sample 只支持 Brier/Log Loss 信号研究；不得计算历史 ROI/PnL，也不得与不同母体的 2025H1 Constant/Elo 指标直接比较。
