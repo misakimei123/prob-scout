@@ -5,6 +5,7 @@ param(
     [string]$CompetitionMappingPath = "",
     [string]$Version = "",
     [string]$OutputRoot = "",
+    [switch]$SkipMarketResolution,
     [switch]$Refresh
 )
 
@@ -101,7 +102,7 @@ if ($LASTEXITCODE -ne 0 -or $gitCommit -notmatch '^[0-9a-f]{40}$') {
     throw "无法读取生成时 Git commit。"
 }
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = "{0}.{1}.hist003" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd"), $gitCommit.Substring(0, 7)
+    $Version = "{0}.{1}.hist007" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd"), $gitCommit.Substring(0, 7)
 }
 if ($Version -notmatch '^[A-Za-z0-9._-]+$') {
     throw "Version 只能包含 ASCII 字母、数字、点、下划线和连字符。"
@@ -111,10 +112,18 @@ $rawRoot = Join-Path $OutputRoot "raw/series_results"
 $reviewDirectory = Join-Path $rawRoot "review"
 $leaguepediaDirectory = Join-Path $rawRoot "leaguepedia"
 $gammaDirectory = Join-Path $rawRoot "gamma"
-$processedDirectory = Join-Path $OutputRoot "processed/lol-series-results/$Version"
-New-Item -ItemType Directory -Force -Path $reviewDirectory, $leaguepediaDirectory, $gammaDirectory | Out-Null
-if (Test-Path -LiteralPath $processedDirectory) {
-    throw "processed version 已存在，禁止覆盖：$processedDirectory"
+$seriesProcessedDirectory = Join-Path $OutputRoot "processed/lol-series-results/$Version"
+$marketProcessedDirectory = Join-Path $OutputRoot "processed/lol-market-resolution-links/$Version"
+$rawDirectories = @($reviewDirectory, $leaguepediaDirectory)
+if (-not $SkipMarketResolution) {
+    $rawDirectories += $gammaDirectory
+}
+New-Item -ItemType Directory -Force -Path $rawDirectories | Out-Null
+if (Test-Path -LiteralPath $seriesProcessedDirectory) {
+    throw "processed version 已存在，禁止覆盖：$seriesProcessedDirectory"
+}
+if (-not $SkipMarketResolution -and (Test-Path -LiteralPath $marketProcessedDirectory)) {
+    throw "processed version 已存在，禁止覆盖：$marketProcessedDirectory"
 }
 
 $reviews = @(Import-Csv -LiteralPath $ReviewPath)
@@ -190,14 +199,14 @@ if ($leaguepediaRows.Count -eq 0) {
     throw "Leaguepedia 结果窗口为空。"
 }
 
-$rawInputs = [System.Collections.Generic.List[object]]::new()
-$rawInputs.Add([pscustomobject][ordered]@{
+$seriesRawInputs = [System.Collections.Generic.List[object]]::new()
+$seriesRawInputs.Add([pscustomobject][ordered]@{
         source = "data_008_review"
         relative_path = Get-RepositoryRelativePath $repositoryRoot $reviewSnapshot
         sha256 = Get-Sha256 $reviewSnapshot
         captured_at_utc = (Get-Item -LiteralPath $reviewSnapshot).LastWriteTimeUtc.ToString("o")
     })
-$rawInputs.Add([pscustomobject][ordered]@{
+$seriesRawInputs.Add([pscustomobject][ordered]@{
         source = "leaguepedia"
         relative_path = Get-RepositoryRelativePath $repositoryRoot $leaguepediaPath
         sha256 = Get-Sha256 $leaguepediaPath
@@ -205,6 +214,17 @@ $rawInputs.Add([pscustomobject][ordered]@{
     })
 
 $candidates = [System.Collections.Generic.List[object]]::new()
+$marketCandidates = [System.Collections.Generic.List[object]]::new()
+$marketRawInputs = [System.Collections.Generic.List[object]]::new()
+if (-not $SkipMarketResolution) {
+    # Market Resolution Link 直接依赖人工 market mapping，因此单独记录 review snapshot。
+    $marketRawInputs.Add([pscustomobject][ordered]@{
+            source = "data_008_review"
+            relative_path = Get-RepositoryRelativePath $repositoryRoot $reviewSnapshot
+            sha256 = Get-Sha256 $reviewSnapshot
+            captured_at_utc = (Get-Item -LiteralPath $reviewSnapshot).LastWriteTimeUtc.ToString("o")
+        })
+}
 foreach ($review in $eligibleReviews) {
     $reviewId = [string]$review.review_id
     $matchRows = @($leaguepediaRows | Where-Object { [string]$_.MatchId -eq [string]$review.leaguepedia_match_id })
@@ -263,51 +283,12 @@ foreach ($review in $eligibleReviews) {
         throw "review_id=$reviewId 的 competition identity 未 Resolved。"
     }
 
-    $gammaPath = Save-ImmutableResponse `
-        -Uri ("https://gamma-api.polymarket.com/markets/{0}" -f $review.market_id) `
-        -Prefix ("market.{0}" -f $review.market_id) `
-        -Directory $gammaDirectory `
-        -UserAgent "prob-scout-research/0.1 (HIST-003 market resolution)" `
-        -Force:$Refresh
-    $gamma = Get-Content -Raw -LiteralPath $gammaPath | ConvertFrom-Json
-    if ([string]$gamma.id -ne [string]$review.market_id -or [string]$gamma.conditionId -ne [string]$review.condition_id) {
-        throw "review_id=$reviewId 的 Gamma resolution 身份与 mapping 不一致。"
-    }
-    if (-not [bool]$gamma.closed -or [string]$gamma.umaResolutionStatus -ne "resolved") {
-        throw "review_id=$reviewId 的 Gamma market 尚未形成最终 resolution。"
-    }
-    $outcomes = @(([string]$gamma.outcomes | ConvertFrom-Json))
-    $outcomePrices = @(([string]$gamma.outcomePrices | ConvertFrom-Json))
-    if ($outcomes.Count -ne 2 -or $outcomePrices.Count -ne 2) {
-        throw "review_id=$reviewId 的 Gamma market 不是二元 Match Winner。"
-    }
-    for ($index = 0; $index -lt 2; $index++) {
-        if ([string]$outcomes[$index] -ne [string]$review.("gamma_outcome_$index")) {
-            throw "review_id=$reviewId 的 Gamma outcome 顺序已漂移。"
-        }
-    }
-    $resolvedWinnerIndexes = @(0..1 | Where-Object { [decimal]$outcomePrices[$_] -eq 1 })
-    if ($resolvedWinnerIndexes.Count -ne 1 -or @($outcomePrices | Where-Object { [decimal]$_ -ne 0 -and [decimal]$_ -ne 1 }).Count -gt 0) {
-        throw "review_id=$reviewId 的 Gamma outcomePrices 不是唯一 0/1 resolution。"
-    }
-    $marketWinnerIndex = [int]$resolvedWinnerIndexes[0]
     $leaguepediaWinnerOutcomeIndex = if ($winnerIndex -eq 0) {
         [int]$review.leaguepedia_team_1_outcome_index
     }
     else {
         1 - [int]$review.leaguepedia_team_1_outcome_index
     }
-    if ($marketWinnerIndex -ne $leaguepediaWinnerOutcomeIndex) {
-        throw "review_id=$reviewId 的 Series Result winner 与 Market Resolution winner 不一致。"
-    }
-
-    $rawInputs.Add([pscustomobject][ordered]@{
-            source = "polymarket_gamma"
-            relative_path = Get-RepositoryRelativePath $repositoryRoot $gammaPath
-            sha256 = Get-Sha256 $gammaPath
-            captured_at_utc = (Get-Item -LiteralPath $gammaPath).LastWriteTimeUtc.ToString("o")
-        })
-
     $leaguepediaTeamIds = @($null, $null)
     $leaguepediaTeamIds[[int]$review.leaguepedia_team_1_outcome_index] = $canonicalTeamIds[[int]$review.leaguepedia_team_1_outcome_index]
     $otherOutcomeIndex = 1 - [int]$review.leaguepedia_team_1_outcome_index
@@ -331,19 +312,73 @@ foreach ($review in $eligibleReviews) {
             winner_team_id = $leaguepediaWinnerCanonicalId
             mapping_evidence_id = "DATA-008:$reviewId"
             result_evidence_id = "leaguepedia:$($review.leaguepedia_match_id)"
-            market_id = [string]$review.market_id
-            market_winner_outcome_index = $marketWinnerIndex
-            market_resolution_evidence_id = "gamma-market:$($review.market_id):$(Get-Sha256 $gammaPath)"
             duplicate_candidate_count = 1
         })
+
+    if (-not $SkipMarketResolution) {
+        # 市场证据是可选的独立关联；存在时仍严格验证身份、顺序、结算和赛事胜者。
+        $gammaPath = Save-ImmutableResponse `
+            -Uri ("https://gamma-api.polymarket.com/markets/{0}" -f $review.market_id) `
+            -Prefix ("market.{0}" -f $review.market_id) `
+            -Directory $gammaDirectory `
+            -UserAgent "prob-scout-research/0.1 (HIST-007 market resolution link)" `
+            -Force:$Refresh
+        $gamma = Get-Content -Raw -LiteralPath $gammaPath | ConvertFrom-Json
+        if ([string]$gamma.id -ne [string]$review.market_id -or [string]$gamma.conditionId -ne [string]$review.condition_id) {
+            throw "review_id=$reviewId 的 Gamma resolution 身份与 mapping 不一致。"
+        }
+        if (-not [bool]$gamma.closed -or [string]$gamma.umaResolutionStatus -ne "resolved") {
+            throw "review_id=$reviewId 的 Gamma market 尚未形成最终 resolution。"
+        }
+        $outcomes = @(([string]$gamma.outcomes | ConvertFrom-Json))
+        $outcomePrices = @(([string]$gamma.outcomePrices | ConvertFrom-Json))
+        if ($outcomes.Count -ne 2 -or $outcomePrices.Count -ne 2) {
+            throw "review_id=$reviewId 的 Gamma market 不是二元 Match Winner。"
+        }
+        for ($index = 0; $index -lt 2; $index++) {
+            if ([string]$outcomes[$index] -ne [string]$review.("gamma_outcome_$index")) {
+                throw "review_id=$reviewId 的 Gamma outcome 顺序已漂移。"
+            }
+        }
+        $resolvedWinnerIndexes = @(0..1 | Where-Object { [decimal]$outcomePrices[$_] -eq 1 })
+        if ($resolvedWinnerIndexes.Count -ne 1 -or @($outcomePrices | Where-Object { [decimal]$_ -ne 0 -and [decimal]$_ -ne 1 }).Count -gt 0) {
+            throw "review_id=$reviewId 的 Gamma outcomePrices 不是唯一 0/1 resolution。"
+        }
+        $marketWinnerIndex = [int]$resolvedWinnerIndexes[0]
+        if ($marketWinnerIndex -ne $leaguepediaWinnerOutcomeIndex) {
+            throw "review_id=$reviewId 的 Series Result winner 与 Market Resolution winner 不一致。"
+        }
+
+        $gammaHash = Get-Sha256 $gammaPath
+        $marketRawInputs.Add([pscustomobject][ordered]@{
+                source = "polymarket_gamma"
+                relative_path = Get-RepositoryRelativePath $repositoryRoot $gammaPath
+                sha256 = $gammaHash
+                captured_at_utc = (Get-Item -LiteralPath $gammaPath).LastWriteTimeUtc.ToString("o")
+            })
+        $marketCandidates.Add([pscustomobject][ordered]@{
+                series_id = "leaguepedia:$($review.leaguepedia_match_id)"
+                market_id = [string]$review.market_id
+                resolution_status = [string]$gamma.umaResolutionStatus
+                closed = [bool]$gamma.closed
+                outcome_0_team_id = $canonicalTeamIds[0]
+                outcome_1_team_id = $canonicalTeamIds[1]
+                outcome_0_price = [int][decimal]$outcomePrices[0]
+                outcome_1_price = [int][decimal]$outcomePrices[1]
+                winner_outcome_index = $marketWinnerIndex
+                mapping_evidence_id = "DATA-008:$reviewId"
+                resolution_evidence_id = "gamma-market:$($review.market_id):$gammaHash"
+                duplicate_candidate_count = 1
+            })
+    }
 }
 
 # 当前输入无重复；仍实现稳定合并规则，未来来源重叠时不会依赖输入顺序。
 $results = [System.Collections.Generic.List[object]]::new()
 foreach ($group in ($candidates | Group-Object series_id | Sort-Object Name)) {
-    $ordered = @($group.Group | Sort-Object result_evidence_id, market_resolution_evidence_id, market_id)
+    $ordered = @($group.Group | Sort-Object result_evidence_id, mapping_evidence_id)
     $primary = $ordered[0]
-    $signatureFields = @("competition_id", "league", "region", "patch", "scheduled_start_utc", "best_of", "team_1_id", "team_1_name", "team_2_id", "team_2_name", "team_1_score", "team_2_score", "winner_team_id", "mapping_evidence_id", "market_winner_outcome_index")
+    $signatureFields = @("competition_id", "league", "region", "patch", "scheduled_start_utc", "best_of", "team_1_id", "team_1_name", "team_2_id", "team_2_name", "team_1_score", "team_2_score", "winner_team_id")
     $primarySignature = (($signatureFields | ForEach-Object { "$($_)=$($primary.$_)" }) -join "`n")
     foreach ($duplicate in ($ordered | Select-Object -Skip 1)) {
         $duplicateSignature = (($signatureFields | ForEach-Object { "$($_)=$($duplicate.$_)" }) -join "`n")
@@ -358,10 +393,40 @@ if ($results.Count -ne $eligibleReviews.Count) {
     throw "输出行数与已解析 BO3/BO5 数量不一致：results=$($results.Count)，eligible=$($eligibleReviews.Count)"
 }
 
-New-Item -ItemType Directory -Path $processedDirectory | Out-Null
-$datasetPath = Join-Path $processedDirectory "series-results.csv"
+$marketLinks = [System.Collections.Generic.List[object]]::new()
+if (-not $SkipMarketResolution) {
+    # 同一 series/market 可合并多份一致证据；任何结算事实冲突均 fail closed。
+    foreach ($group in ($marketCandidates | Group-Object series_id, market_id | Sort-Object Name)) {
+        $ordered = @($group.Group | Sort-Object resolution_evidence_id, mapping_evidence_id)
+        $primary = $ordered[0]
+        $signatureFields = @("resolution_status", "closed", "outcome_0_team_id", "outcome_1_team_id", "outcome_0_price", "outcome_1_price", "winner_outcome_index")
+        $primarySignature = (($signatureFields | ForEach-Object { "$($_)=$($primary.$_)" }) -join "`n")
+        foreach ($duplicate in ($ordered | Select-Object -Skip 1)) {
+            $duplicateSignature = (($signatureFields | ForEach-Object { "$($_)=$($duplicate.$_)" }) -join "`n")
+            if ($duplicateSignature -ne $primarySignature) {
+                throw "series_id=$($primary.series_id), market_id=$($primary.market_id) 的重复结算存在冲突。"
+            }
+        }
+        $primary.duplicate_candidate_count = $ordered.Count
+        $marketLinks.Add($primary)
+    }
+    if ($marketLinks.Count -ne $results.Count) {
+        throw "当前固定审核批次的市场关联数量不完整：links=$($marketLinks.Count)，series=$($results.Count)"
+    }
+}
+
+New-Item -ItemType Directory -Path $seriesProcessedDirectory | Out-Null
+$datasetPath = Join-Path $seriesProcessedDirectory "series-results.csv"
 $results | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $datasetPath
 $datasetHash = Get-Sha256 $datasetPath
+$marketDatasetPath = $null
+$marketDatasetHash = $null
+if (-not $SkipMarketResolution) {
+    New-Item -ItemType Directory -Path $marketProcessedDirectory | Out-Null
+    $marketDatasetPath = Join-Path $marketProcessedDirectory "market-resolution-links.csv"
+    $marketLinks | Export-Csv -NoTypeInformation -Encoding utf8 -LiteralPath $marketDatasetPath
+    $marketDatasetHash = Get-Sha256 $marketDatasetPath
+}
 
 # dirty hash 覆盖 tracked diff 和非忽略 untracked 文件摘要；排除用户 IDE 目录和生成后的 ignored data。
 $statusLines = @(& git -C $repositoryRoot status --porcelain=v1 --untracked-files=all)
@@ -388,8 +453,12 @@ if ($dirty) {
 }
 
 $generatedAtUtc = (Get-Date).ToUniversalTime().ToString("o")
-$orderedRawInputs = @($rawInputs | Sort-Object relative_path -Unique)
+$orderedSeriesRawInputs = @($seriesRawInputs | Sort-Object relative_path -Unique)
 $eventTimes = @($results | ForEach-Object { [datetimeoffset]$_.scheduled_start_utc } | Sort-Object)
+$generatorArguments = @("-Version", $Version)
+if ($SkipMarketResolution) {
+    $generatorArguments += "-SkipMarketResolution"
+}
 $manifest = [ordered]@{
     manifest_version = 1
     dataset = [ordered]@{ name = "lol-series-results"; version = $Version }
@@ -397,9 +466,9 @@ $manifest = [ordered]@{
     code = [ordered]@{ git_commit = $gitCommit; dirty = $dirty; diff_sha256 = $diffHash }
     generator = [ordered]@{
         entrypoint = "research/build_series_result_dataset.ps1"
-        arguments = @("-Version", $Version)
+        arguments = $generatorArguments
     }
-    raw_inputs = $orderedRawInputs
+    raw_inputs = $orderedSeriesRawInputs
     output = [ordered]@{
         relative_path = Get-RepositoryRelativePath $repositoryRoot $datasetPath
         sha256 = $datasetHash
@@ -418,6 +487,45 @@ if ($LASTEXITCODE -ne 0) {
     throw "Dataset Manifest v1 Rust 校验失败。"
 }
 
+$marketManifestPath = $null
+if (-not $SkipMarketResolution) {
+    $marketManifest = [ordered]@{
+        manifest_version = 1
+        dataset = [ordered]@{ name = "lol-market-resolution-links"; version = $Version }
+        generated_at_utc = $generatedAtUtc
+        code = [ordered]@{ git_commit = $gitCommit; dirty = $dirty; diff_sha256 = $diffHash }
+        generator = [ordered]@{
+            entrypoint = "research/build_series_result_dataset.ps1"
+            arguments = $generatorArguments
+        }
+        upstream_datasets = @(
+            [ordered]@{
+                manifest_relative_path = Get-RepositoryRelativePath $repositoryRoot $manifestPath
+                manifest_sha256 = Get-Sha256 $manifestPath
+                output_relative_path = Get-RepositoryRelativePath $repositoryRoot $datasetPath
+                output_sha256 = $datasetHash
+            }
+        )
+        raw_inputs = @($marketRawInputs | Sort-Object relative_path -Unique)
+        output = [ordered]@{
+            relative_path = Get-RepositoryRelativePath $repositoryRoot $marketDatasetPath
+            sha256 = $marketDatasetHash
+            row_count = $marketLinks.Count
+            event_time_range_utc = [ordered]@{
+                start = Format-Utc $eventTimes[0]
+                end = Format-Utc $eventTimes[-1]
+            }
+        }
+    }
+    $marketManifestPath = "$marketDatasetPath.manifest.json"
+    $marketManifest | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 -LiteralPath $marketManifestPath
+
+    & cargo run --quiet --locked --bin validate_dataset_manifest -- $marketManifestPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Market Resolution Link 的 Dataset Manifest v1 Rust 校验失败。"
+    }
+}
+
 [pscustomobject]@{
     Version = $Version
     ReviewRows = $reviews.Count
@@ -426,7 +534,11 @@ if ($LASTEXITCODE -ne 0) {
     ExcludedBo1 = @($reviews | Where-Object { $_.expected_status -eq "Matched" -and $_.best_of -eq "1" }).Count
     SeriesRows = $results.Count
     DuplicateCandidates = @($results | Measure-Object duplicate_candidate_count -Sum).Sum - $results.Count
+    MarketLinkRows = $marketLinks.Count
     DatasetSha256 = $datasetHash
     Dataset = $datasetPath
     Manifest = $manifestPath
+    MarketLinkDatasetSha256 = $marketDatasetHash
+    MarketLinkDataset = $marketDatasetPath
+    MarketLinkManifest = $marketManifestPath
 }

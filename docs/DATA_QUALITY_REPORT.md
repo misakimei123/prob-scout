@@ -4,7 +4,7 @@
 
 ## 1. 结论
 
-`HIST-006` 已完成，但 M2 Gate 结论是 `NotReadyForM3`，不是通过。
+`HIST-006` 初版已完成，当时 M2 Gate 结论是 `NotReadyForM3`。该历史结论已由 HIST-010 的 1,778-row 重建 supersede 为 `ReadyForM3`；本文件以下内容保留初版证据快照，当前状态见 `HISTORICAL_IDENTITY_EVIDENCE.md`。
 
 - Eligible series：`23/500`（`4.60%`）。
 - Event 时间：`2026-08-08T15:00:00Z` 至 `2026-08-11T20:00:00Z`，仅 `4` 个 UTC 日期、`1` 个年份。

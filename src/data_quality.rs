@@ -533,7 +533,7 @@ pub fn build_data_quality_report(
             what_failed: "Eligible series volume is below the preregistered modeling target".to_owned(),
             evidence: sample_coverage,
             impact: "Model fitting, calibration, segmented evaluation, and confidence intervals would be dominated by small-sample variance".to_owned(),
-            likely_cause: "The fixed DATA-008 baseline contains 50 markets, of which only 23 are resolved BO3/BO5 mappings".to_owned(),
+            likely_cause: "The current identity/result pipeline has fewer fully resolved BO3/BO5 series than the preregistered target".to_owned(),
             remediation: "Expand the immutable historical mapping/result/feature pipeline to at least 500 eligible series without weakening identity or leakage rules".to_owned(),
         });
     }
@@ -550,8 +550,8 @@ pub fn build_data_quality_report(
                 years.len(),
                 patches.len()
             ),
-            impact: "The current split tests mechanics only; it cannot distinguish stable predictive value from a four-day, single-Patch regime".to_owned(),
-            likely_cause: "HIST-003 intentionally started from the recent 50-market feasibility review instead of a multi-season corpus".to_owned(),
+            impact: "The current split can test within-corpus out-of-time behavior, but a single-year or single-Patch corpus cannot establish cross-season robustness".to_owned(),
+            likely_cause: "The current immutable corpus covers a bounded historical acquisition window rather than multiple seasons".to_owned(),
             remediation: "Acquire multiple seasons and Patches, then regenerate identities, results, features, splits, and this report".to_owned(),
         });
     }
@@ -565,7 +565,7 @@ pub fn build_data_quality_report(
                 "{same_patch_missing}/{team_side_count} team sides have same_patch_series_count=0 with null source time"
             ),
             impact: "Same-Patch form is unavailable for those rows; treating zero history as a 0% win rate would bias the model".to_owned(),
-            likely_cause: "Targets occur early in Patch 26.15 or the exact source-key history has no earlier series on that Patch".to_owned(),
+            likely_cause: "Targets can occur early in a Patch, or the exact source-key history has no earlier series on that Patch".to_owned(),
             remediation: "Retain the series, encode same-Patch availability explicitly, and keep numerator/denominator missing semantics; do not impute 0%".to_owned(),
         });
     }
@@ -633,7 +633,7 @@ pub fn build_data_quality_report(
             "NotReadyForM3".to_owned()
         },
         gate_reason: if gate_ready {
-            "volume and temporal coverage thresholds passed".to_owned()
+            "the preregistered eligible-series volume threshold passed; temporal and market caveats remain explicit findings".to_owned()
         } else {
             format!(
                 "only {series_count}/{} eligible series across {distinct_utc_dates} UTC dates, {} year(s), and {} Patch(es)",
@@ -771,11 +771,6 @@ fn validate_series_result(result: &SeriesResult) -> Result<(), DataQualityError>
         ("winner_team_id", result.winner_team_id.as_str()),
         ("mapping_evidence_id", result.mapping_evidence_id.as_str()),
         ("result_evidence_id", result.result_evidence_id.as_str()),
-        ("market_id", result.market_id.as_str()),
-        (
-            "market_resolution_evidence_id",
-            result.market_resolution_evidence_id.as_str(),
-        ),
     ] {
         if value.trim().is_empty() {
             return Err(DataQualityError::EmptyField {
@@ -1091,9 +1086,6 @@ mod tests {
             winner_team_id: format!("lol-team:{id}-a"),
             mapping_evidence_id: format!("mapping:{id}"),
             result_evidence_id: format!("result:{id}"),
-            market_id: format!("market:{id}"),
-            market_winner_outcome_index: 0,
-            market_resolution_evidence_id: format!("resolution:{id}"),
             duplicate_candidate_count: 1,
         }
     }

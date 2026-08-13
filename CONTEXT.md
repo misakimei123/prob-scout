@@ -41,8 +41,28 @@ _Avoid_: Event, tournament label
 _Avoid_: Competition string match
 
 **Series Result**:
-一场完整 BO3/BO5 Event 的最终赛果记录。它保留赛前已知的 competition、region、Patch、Scheduled Start 和双方 Canonical Team，并在赛后补充完整比分与胜者；逐局结果不能伪装成 Series Result。
-_Avoid_: Game result, feature row
+一场完整 BO3/BO5 Event 的最终赛果记录。它保留赛前已知的 competition、region、Patch、Scheduled Start 和双方 Canonical Team，并在赛后补充完整比分与胜者；它不要求存在预测市场，逐局结果也不能伪装成 Series Result。
+_Avoid_: Game result, feature row, market-required result
+
+**Historical Series Candidate**:
+通过 MatchSchedule 与 ScoreboardGames 结构校验、但仍只保存 Leaguepedia team/competition source key 的完整 BO3/BO5 候选；只有后续时间化 identity resolution 成功后才能成为 eligible Series Result。
+_Avoid_: Eligible series, normalized team identity
+
+**Identity Coverage Audit**:
+在每条 Historical Series Candidate 的 Scheduled Start 时刻，用显式有效期 evidence 分别解析双方 Team 与 Competition，并输出 `Resolved`、`Missing` 或 `Ambiguous` 的可重放审计。它只量化 identity 覆盖，不创建 Canonical ID。
+_Avoid_: Fuzzy matching, current-name backfill
+
+**Identity Review Queue**:
+将 Identity Coverage Audit 中相同 kind、source key 和失败状态的未解析 occurrence 聚合后的人工补证清单；保留首次/末次出现时间、次数与受影响 series，不能把队列项本身当作已确认映射。
+_Avoid_: Auto-approved alias, unresolved identity registry
+
+**Historical Identity Evidence**:
+由 Leaguepedia exact TeamRedirects/Tournaments relation 与具体 MatchSchedule 赛事时点共同组成的时间化身份凭证；只授权证据事件的有效区间，缺失或一对多 relation 继续 fail closed。
+_Avoid_: Source-key fallback, slug identity, timeless current redirect
+
+**Candidate Rejection**:
+历史候选因 BO 类型、比分/Winner、Patch、逐局数量/时间或必填字段不满足合同而被排除的可审计记录；拒绝原因必须保留，不能在采集查询中静默过滤。
+_Avoid_: Dropped row, ignored match
 
 **Feature Snapshot**:
 在固定赛前 cutoff 对一个 Event 生成的不可变特征集合；目标合同不包含该 Event 的比分、winner 或 market resolution，且每个历史特征都记录最新来源时间。
@@ -71,6 +91,10 @@ _Avoid_: Identity mapping, market price
 **Market Resolution Evidence**:
 独立证明 Match Winner 市场最终结算 outcome 的来源记录。它必须明确市场已关闭并 resolved，且唯一获胜 outcome 对应的 Canonical Team 与 Series Result 胜者一致。
 _Avoid_: Last traded price, identity mapping
+
+**Market Resolution Link**:
+按 `(series_id, market_id)` 将一个纯 Series Result 与已校验的 Market Resolution Evidence 关联的可选记录；缺少 link 不淘汰 Series Result，但该赛事不得进入 Market Baseline、Edge Strategy 或 PnL 分析。
+_Avoid_: Nullable market fields on Series Result, inferred market outcome
 
 **Market Mapping**:
 一个 Event 与一个 Polymarket Match Winner 市场及其有序 outcome/token 的可追溯关联。

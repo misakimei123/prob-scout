@@ -19,4 +19,7 @@
 - 长期术语以根目录 `CONTEXT.md` 为准，任务状态以 `docs/TASK_BREAKDOWN.md` 为准。
 - HIST-003 真实批次只消费 DATA-008 已解析 BO3/BO5，23/23 Leaguepedia winner 与 Gamma resolution 一致；HIST-004 已生成 23 个无 cutoff 来源时间违规的赛前特征快照。
 - HIST-005 已将 23 场按 UTC 日期划为 3/7/6/7；final test 7 场在 development manifest 中不暴露 ID。
-- HIST-006 区分“报告任务完成”和“数据 Gate 通过”：23/500、4 个 UTC 日期、单一 Patch 的结论固定为 `NotReadyForM3`；Same-Patch count=0/source=null 是 unavailable，不是 0% 胜率，IQR 标记不自动排除。
+- HIST-006 区分“报告任务完成”和“数据 Gate 通过”；初版 23/500 为 `NotReadyForM3`，HIST-010 扩展至 1,778/500 后 supersede 为 `ReadyForM3`。Same-Patch count=0/source=null 仍是 unavailable，不是 0% 胜率，IQR 标记不自动排除。
+- HIST-008 在 Canonical identity 前增加 source-identity candidate 层：MatchSchedule 与 ScoreboardGames 分页分开采集，避免缺 game 的 series 被 inner join 静默过滤；完整候选保留 Scheduled Start、实际 completed time、team/competition source key、Patch 和 result evidence，所有不合格项进入显式 rejection audit。candidate 数量不能替代 eligible series 数量。
+- HIST-010 historical identity 只接受 exact TeamRedirects/Tournaments relation，并与具体 MatchSchedule 事件时点组合成 1 秒 period；Canonical ID 使用 exact source identity hash，不使用 slug/fuzzy/source-key fallback。批量 identity coverage 必须先全表校验一次，再使用 validated resolver，避免逐 occurrence 重复扫描。
+- 大规模 HIST-004 source-key 查询按固定 team batch 分页；跨 batch 的同一 `(MatchId, game number)` 只有事实签名一致才去重，冲突 fail closed。

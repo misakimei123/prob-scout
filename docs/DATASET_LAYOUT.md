@@ -107,7 +107,11 @@ Rust 合同位于 [`src/dataset_manifest.rs`](../src/dataset_manifest.rs)。所�
 5. 最后写 `<dataset-file>.manifest.json`，再调用 `DatasetManifest::validate()`；校验失败的目录不是有效 processed dataset。
 6. artifact 使用数据集时记录 dataset manifest 的路径和 hash，从而经 manifest 回溯到所有 raw 输入。
 
-manifest 证明“使用了哪些字节和代码”，不证明业务内容正确。HIST-002 仍需解决队伍身份，HIST-003 仍需核对 series winner 与市场 resolution，HIST-004 仍需单独证明没有未来泄漏。
+manifest 证明“使用了哪些字节和代码”，不证明业务内容正确。HIST-002 仍需解决队伍身份，纯 Series Result 仍需核对赛事 winner；可选 Market Resolution Link 另行核对市场 resolution，HIST-004 仍需单独证明没有未来泄漏。
+
+HIST-009 的 `lol-identity-coverage-audits` 是 processed-on-processed 审计：manifest 必须同时固定 HIST-008 upstream manifest/output hash 和三份 HIST-002 review evidence 的 `data/raw/identity_coverage/hist002/` hash 快照。`row_count` 表示已审计 candidate 数，不表示 fully resolved 或 eligible series 数。
+
+HIST-010 的 `lol-historical-identity-evidence` 同时固定 HIST-008 upstream 与完整 TeamRedirects/Tournaments raw pages；其下游 Series Result、Feature Snapshot、Temporal Split 和 Quality Report 分别通过 `upstream_datasets` 逐层固定实际输入。Identity audit 的 candidate `row_count` 与其中 fully resolved 数分开记录，不能用 manifest row count 代替 eligible 数。
 
 ## 4. Fail-closed 校验
 

@@ -1,8 +1,8 @@
 # HIST-004 赛前特征快照
 
-更新日期：2026-08-12
+更新日期：2026-08-13
 
-范围：为 HIST-003 的 BO3/BO5 目标赛事生成固定 `T-15m` 的基础 team form 特征；目标输入只包含赛前字段，比分、winner、Result Evidence 和 Market Resolution Evidence 不进入目标合同。
+范围：为纯 Series Result 中的 BO3/BO5 目标赛事生成固定 `T-15m` 的基础 team form 特征；目标输入只包含赛前字段，比分、winner、Result Evidence 和 Market Resolution Link/Evidence 不进入目标合同。
 
 ## 1. 防未来泄漏合同
 
@@ -67,4 +67,17 @@ HIST-004 直接消费 HIST-003 processed dataset，因此 Dataset Manifest v1 �
 
 - 本任务证明生成器按来源完成时间执行 cutoff，并且目标赛后记录不能改变早期特征；它不证明 Leaguepedia 当前页面等价于比赛当时保存的不可变页面版本。
 - 精确 source key 的 rename 召回率可能偏低，但不会猜测跨名称身份；覆盖问题留给 HIST-006 报告。
-- 当前仍只有 23 个目标 series，不满足 M2 Gate 的至少 500 场要求；HIST-005 只能先验证时间划分合同，不能把小样本包装成模型有效性证据。
+- HIST-004 初版只有 23 个目标 series，当时不满足 M2 Gate 的至少 500 场要求；该历史结论已由下节 HIST-010 扩展重建 supersede。
+
+## 6. HIST-010 扩展重建
+
+1,778 个目标包含 370 个 exact Leaguepedia source team keys。单个 Cargo `IN` 查询会触发来源侧资源错误，因此 builder 增加固定 `TeamBatchSize`，默认最多 50，本次使用 25：
+
+- 每个 batch 独立分页、保存 query/content hash；
+- 跨 batch 重复的 `(MatchId, game number)` 只有完整事实签名一致才去重；
+- 同一 game row 冲突立即 fail closed；
+- batching 只改变采集规模，不改变 exact source-key 或 cutoff 语义。
+
+真实重建执行 15 个 query、40 个 raw page，得到 8,987 个唯一 game rows、4,892 个 team observations 和 1,778 个 Feature Snapshot；1,750 个 snapshot 至少一方有历史，3,556 个 team-side source time violation 为 0。输出 SHA-256 为 `3a29cbfc7a9311b6bf36837da0fc2c24df115175460251bab862c6de89d50ab3`，缓存重放 hash 一致。
+
+Same-Patch history 仍有 1,461/3,556 unavailable；该缺口由质量报告保留，不填充为 0% 胜率。

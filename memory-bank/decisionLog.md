@@ -51,3 +51,19 @@ Dataset Manifest v1 在 `upstream_datasets` 非空时允许 `raw_inputs=[]`，�
 ## 2026-08-12 — M2 数据质量 Gate 为 NotReadyForM3
 
 HIST-006 的构建任务已完成，但数据就绪 Gate 明确为 `NotReadyForM3`。原因是当前只有 23/500 eligible series，覆盖 4 个 UTC 日期、1 个年份和单一 Patch `26.15`；虽然必填字段、跨数据集成员、时间防泄漏和 split commitment 均通过，DATA-009 的 50 个市场仍全部为 Grade C。影响是 MODEL-001 继续被阻塞，下一步必须扩展多时间段、多 Patch 的不可变历史语料并重跑 HIST-002–HIST-006；不得把任务勾选、低缺失率或 pipeline 测试通过解释为模型证据。
+
+## 2026-08-13 — Series Result 与 Market Resolution Link 分离
+
+HIST-007 将纯赛事 `Series Result` 与按 `(series_id, market_id)` 建立的可选 `Market Resolution Link` 分离。本决策 supersede 2026-08-12 “Series Result 与 Market Resolution 双证据”中“缺少 market resolution 即淘汰赛事结果”的部分，但保留 linked 子集的双证据一致性要求。原因是赛事最终比分/胜者可由 Leaguepedia `MatchSchedule` 与 `ScoreboardGames` 独立证明，强制要求 Polymarket 会把训练语料错误限制为有市场赛事。影响是 marketless BO3/BO5 可进入 Constant/Elo/统计模型，Market Baseline、Edge Strategy 和 PnL 仍必须要求已校验 link；存在 link 时 closed/resolved、outcome 顺序、唯一 0/1 winner 和 series winner 任一冲突都 fail closed。
+
+## 2026-08-13 — Source-identity candidate 先于 Canonical identity 扩展
+
+HIST-008 先建立只含 Leaguepedia source key 的 `Historical Series Candidate`，再由后续任务进行时间化 Canonical identity resolution。原因是批量把 `Team1`/`Team2` 或 `OverviewPage` slug 化会绕过 HIST-002，并错误合并改名、缩写、名称复用、Academy/Challengers/二队。MatchSchedule 与 ScoreboardGames 分开分页采集，确保缺少 games 的 series 进入 rejection 而非被 inner join 静默过滤。影响是 2,061 条结构候选不能直接计作 eligible series；必须先对 468 个 team source key 和 146 个 competition source key 输出 `Resolved`/`Missing`/`Ambiguous` 证据。
+
+## 2026-08-13 — Cargo exact relation 与事件时点共同构成历史 Identity Evidence
+
+HIST-010 只用 `TeamRedirects.AllName -> canonical page` 和 `Tournaments.OverviewPage -> League/Region` 的 exact Cargo relation，并与 HIST-008 MatchSchedule 的具体赛事时点组合成 `[start,start+1s)` identity period。Canonical ID 对 exact source identity 做 SHA-256，不从名称生成 slug；缺失 relation 不用 source key fallback，一对多 relation 保留全部候选为 Ambiguous。原因是当前 alias 表可以明确证明来源关系，但不能授权无证据的时间插值。影响是 1,778 candidates resolved，283 继续阻塞；当前 Cargo 页面未来修订时必须产生新 raw hash/version，不能覆盖本次证据。
+
+## 2026-08-13 — M2 Gate 更新为 ReadyForM3
+
+本决策 supersede 2026-08-12 “M2 数据质量 Gate 为 NotReadyForM3”。HIST-010 重建得到 1,778/500 eligible series、170 个 UTC 日期、13 Patch、6 Region，3,556 个 team-side feature source time leakage 为 0，因此按预注册的 volume 硬门槛更新为 `ReadyForM3`。影响是允许开始 Constant/Elo/统计概率模型；但单一年份、41.09% same-Patch unavailable、98 条 unresolved identity queue 和 50/50 Grade C market evidence 仍是 finding，Market Baseline、Edge、PnL 与 execution readiness 不随本 Gate 自动放行。

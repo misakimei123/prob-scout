@@ -8,6 +8,8 @@ param(
     [int]$SnapshotLeadMinutes = 15,
     [ValidateRange(1, 730)]
     [int]$HistoryDays = 180,
+    [ValidateRange(1, 100)]
+    [int]$TeamBatchSize = 50,
     [switch]$Refresh
 )
 
@@ -200,40 +202,71 @@ foreach ($row in $seriesRows) {
 $orderedTimes = @($targetTimes | Sort-Object)
 $historyStart = $orderedTimes[0].AddDays(-$HistoryDays)
 $historyEnd = $orderedTimes[-1]
-$quotedNames = @($teamIdsByLeaguepediaName.Keys | Sort-Object | ForEach-Object { '"{0}"' -f (Escape-CargoString $_) })
-$namesClause = $quotedNames -join ','
-$where = 'MS.DateTime_UTC >= "{0}" AND MS.DateTime_UTC < "{1}" AND MS.BestOf IN (3,5) AND MS.Winner IN (1,2) AND (MS.Team1 IN ({2}) OR MS.Team2 IN ({2}))' -f `
-    $historyStart.ToString("yyyy-MM-dd HH:mm:ss"),
-    $historyEnd.ToString("yyyy-MM-dd HH:mm:ss"),
-    $namesClause
-$baseParameters = [ordered]@{
-    "tables[0]" = "MatchSchedule=MS,ScoreboardGames=SG"
-    "fields[0]" = "MS.MatchId,MS.DateTime_UTC=MatchStartUtc,MS.Team1,MS.Team2,MS.Team1Score,MS.Team2Score,MS.Winner,MS.BestOf,SG.Patch,SG.N_GameInMatch,SG.DateTime_UTC=GameStartUtc,SG.Gamelength_Number"
-    "where[0]" = $where
-    "join_on[0]" = "MS.MatchId=SG.MatchId"
-    "order_by[0]" = "MS.DateTime_UTC ASC,MS.MatchId ASC,SG.N_GameInMatch ASC"
-    "limit[0]" = "500"
-    format = "json"
-}
-$queryIdentity = ($baseParameters.GetEnumerator() | ForEach-Object { "{0}={1}" -f $_.Key, $_.Value }) -join "`n"
-$queryHash = Get-StringSha256 $queryIdentity
-$historyRows = [System.Collections.Generic.List[object]]::new()
+$teamNames = @($teamIdsByLeaguepediaName.Keys | Sort-Object)
+$historyRowsByKey = @{}
+$historySignatures = @{}
 $rawInputs = [System.Collections.Generic.List[object]]::new()
-$offset = 0
-do {
-    $pagePath = Save-CargoPage -BaseParameters $baseParameters -Offset $offset -QueryHash $queryHash -Directory $historyDirectory -Force:$Refresh
-    $pageRows = @(Get-Content -Raw -LiteralPath $pagePath | ConvertFrom-Json)
-    foreach ($pageRow in $pageRows) {
-        $historyRows.Add($pageRow)
+$historyQueryCount = 0
+for ($batchStart = 0; $batchStart -lt $teamNames.Count; $batchStart += $TeamBatchSize) {
+    $batchEnd = [Math]::Min($batchStart + $TeamBatchSize - 1, $teamNames.Count - 1)
+    $quotedNames = @($teamNames[$batchStart..$batchEnd] | ForEach-Object { '"{0}"' -f (Escape-CargoString $_) })
+    $namesClause = $quotedNames -join ','
+    $where = 'MS.DateTime_UTC >= "{0}" AND MS.DateTime_UTC < "{1}" AND MS.BestOf IN (3,5) AND MS.Winner IN (1,2) AND (MS.Team1 IN ({2}) OR MS.Team2 IN ({2}))' -f `
+        $historyStart.ToString("yyyy-MM-dd HH:mm:ss"),
+        $historyEnd.ToString("yyyy-MM-dd HH:mm:ss"),
+        $namesClause
+    $baseParameters = [ordered]@{
+        "tables[0]" = "MatchSchedule=MS,ScoreboardGames=SG"
+        "fields[0]" = "MS.MatchId,MS.DateTime_UTC=MatchStartUtc,MS.Team1,MS.Team2,MS.Team1Score,MS.Team2Score,MS.Winner,MS.BestOf,SG.Patch,SG.N_GameInMatch,SG.DateTime_UTC=GameStartUtc,SG.Gamelength_Number"
+        "where[0]" = $where
+        "join_on[0]" = "MS.MatchId=SG.MatchId"
+        "order_by[0]" = "MS.DateTime_UTC ASC,MS.MatchId ASC,SG.N_GameInMatch ASC"
+        "limit[0]" = "500"
+        format = "json"
     }
-    $rawInputs.Add([pscustomobject][ordered]@{
-            source = "leaguepedia"
-            relative_path = Get-RepositoryRelativePath $repositoryRoot $pagePath
-            sha256 = Get-Sha256 $pagePath
-            captured_at_utc = (Get-Item -LiteralPath $pagePath).LastWriteTimeUtc.ToString("o")
-        })
-    $offset += 500
-} while ($pageRows.Count -eq 500)
+    $queryIdentity = ($baseParameters.GetEnumerator() | ForEach-Object { "{0}={1}" -f $_.Key, $_.Value }) -join "`n"
+    $queryHash = Get-StringSha256 $queryIdentity
+    $historyQueryCount++
+    $pageHashes = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    $offset = 0
+    do {
+        $pagePath = Save-CargoPage -BaseParameters $baseParameters -Offset $offset -QueryHash $queryHash -Directory $historyDirectory -Force:$Refresh
+        $pageRows = @(Get-Content -Raw -LiteralPath $pagePath | ConvertFrom-Json)
+        $pageHash = Get-Sha256 $pagePath
+        if ($pageRows.Count -gt 0 -and -not $pageHashes.Add($pageHash)) {
+            throw "HIST-004 同一 batch 的不同 offset 返回相同页面：batchStart=$batchStart, offset=$offset"
+        }
+        foreach ($pageRow in $pageRows) {
+            $gameNumber = [string]$pageRow.('N GameInMatch')
+            $rowKey = "{0}|{1}" -f [string]$pageRow.MatchId, $gameNumber
+            $signature = @(
+                [string]$pageRow.MatchStartUtc,
+                [string]$pageRow.Team1,
+                [string]$pageRow.Team2,
+                [string]$pageRow.Team1Score,
+                [string]$pageRow.Team2Score,
+                [string]$pageRow.Winner,
+                [string]$pageRow.BestOf,
+                [string]$pageRow.Patch,
+                [string]$pageRow.GameStartUtc,
+                [string]$pageRow.('Gamelength Number')
+            ) -join "`n"
+            if ($historySignatures.ContainsKey($rowKey) -and $historySignatures[$rowKey] -ne $signature) {
+                throw "HIST-004 跨 batch 的同一 game row 存在冲突：$rowKey"
+            }
+            $historySignatures[$rowKey] = $signature
+            $historyRowsByKey[$rowKey] = $pageRow
+        }
+        $rawInputs.Add([pscustomobject][ordered]@{
+                source = "leaguepedia"
+                relative_path = Get-RepositoryRelativePath $repositoryRoot $pagePath
+                sha256 = $pageHash
+                captured_at_utc = (Get-Item -LiteralPath $pagePath).LastWriteTimeUtc.ToString("o")
+            })
+        $offset += 500
+    } while ($pageRows.Count -eq 500)
+}
+$historyRows = @($historyRowsByKey.Values | Sort-Object MatchId, { [int]$_.('N GameInMatch') })
 if ($historyRows.Count -eq 0) {
     throw "Leaguepedia 历史查询没有返回任何目标队伍记录。"
 }
@@ -388,7 +421,7 @@ $manifest = [ordered]@{
     code = [ordered]@{ git_commit = $gitCommit; dirty = $dirty; diff_sha256 = $diffHash }
     generator = [ordered]@{
         entrypoint = "research/build_prematch_feature_dataset.ps1"
-        arguments = @("-Version", $Version, "-SnapshotLeadMinutes", [string]$SnapshotLeadMinutes, "-HistoryDays", [string]$HistoryDays)
+        arguments = @("-Version", $Version, "-SnapshotLeadMinutes", [string]$SnapshotLeadMinutes, "-HistoryDays", [string]$HistoryDays, "-TeamBatchSize", [string]$TeamBatchSize)
     }
     upstream_datasets = @([ordered]@{
             manifest_relative_path = Get-RepositoryRelativePath $repositoryRoot $SeriesResultManifestPath
@@ -419,6 +452,7 @@ if ($LASTEXITCODE -ne 0) {
     TargetSeries = $targets.Count
     HistoryDays = $HistoryDays
     HistoryRows = $historyRows.Count
+    HistoryQueries = $historyQueryCount
     HistoryPages = $rawInputs.Count
     TeamObservations = $observations.Count
     ExcludedIncompleteSeries = $excludedIncompleteSeries

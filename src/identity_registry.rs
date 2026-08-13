@@ -129,6 +129,11 @@ pub enum IdentityResolution {
     Ambiguous(Vec<String>),
 }
 
+/// 已完成一次全表校验的只读解析器，供批量 coverage 避免每条记录重复扫描合同。
+pub struct ValidatedIdentityResolver<'a> {
+    registry: &'a IdentityRegistry,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IdentityRegistryError {
     EmptyField(&'static str),
@@ -272,6 +277,13 @@ impl IdentityRegistry {
         Ok(())
     }
 
+    pub fn validated_resolver(
+        &self,
+    ) -> Result<ValidatedIdentityResolver<'_>, IdentityRegistryError> {
+        self.validate()?;
+        Ok(ValidatedIdentityResolver { registry: self })
+    }
+
     /// source ID 存在时只按 ID 解析；未知 ID 不降级为名称匹配。
     pub fn resolve_team(
         &self,
@@ -280,7 +292,40 @@ impl IdentityRegistry {
         observed_name: &str,
         observed_at_utc: DateTime<Utc>,
     ) -> Result<IdentityResolution, IdentityRegistryError> {
-        self.validate()?;
+        self.validated_resolver()?.resolve_team(
+            source,
+            source_team_id,
+            observed_name,
+            observed_at_utc,
+        )
+    }
+
+    /// Competition 与 Event 分开解析；赛季/阶段名称只能经显式 period 指向品牌身份。
+    pub fn resolve_competition(
+        &self,
+        source: DataSource,
+        source_competition_id: Option<&str>,
+        observed_name: &str,
+        observed_at_utc: DateTime<Utc>,
+    ) -> Result<IdentityResolution, IdentityRegistryError> {
+        self.validated_resolver()?.resolve_competition(
+            source,
+            source_competition_id,
+            observed_name,
+            observed_at_utc,
+        )
+    }
+}
+
+impl ValidatedIdentityResolver<'_> {
+    /// 调用者已通过 `validated_resolver` 完成全表校验；这里只校验本次 source ID。
+    pub fn resolve_team(
+        &self,
+        source: DataSource,
+        source_team_id: Option<&str>,
+        observed_name: &str,
+        observed_at_utc: DateTime<Utc>,
+    ) -> Result<IdentityResolution, IdentityRegistryError> {
         if source_team_id.is_some_and(|source_id| source_id.trim().is_empty()) {
             return Err(IdentityRegistryError::EmptySourceId(
                 "resolve_team.source_team_id",
@@ -288,6 +333,7 @@ impl IdentityRegistry {
         }
         let normalized_name = normalize_team_name(observed_name);
         let candidates = self
+            .registry
             .team_identity_periods
             .iter()
             .filter(|period| period.source == source && period.is_active_at(observed_at_utc))
@@ -300,7 +346,7 @@ impl IdentityRegistry {
         Ok(to_resolution(candidates))
     }
 
-    /// Competition 与 Event 分开解析；赛季/阶段名称只能经显式 period 指向品牌身份。
+    /// 批量 competition 解析同样只执行本次参数校验。
     pub fn resolve_competition(
         &self,
         source: DataSource,
@@ -308,7 +354,6 @@ impl IdentityRegistry {
         observed_name: &str,
         observed_at_utc: DateTime<Utc>,
     ) -> Result<IdentityResolution, IdentityRegistryError> {
-        self.validate()?;
         if source_competition_id.is_some_and(|source_id| source_id.trim().is_empty()) {
             return Err(IdentityRegistryError::EmptySourceId(
                 "resolve_competition.source_competition_id",
@@ -316,6 +361,7 @@ impl IdentityRegistry {
         }
         let normalized_name = normalize_team_name(observed_name);
         let candidates = self
+            .registry
             .competition_identity_periods
             .iter()
             .filter(|period| period.source == source && period.is_active_at(observed_at_utc))

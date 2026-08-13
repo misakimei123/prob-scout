@@ -145,8 +145,7 @@ foreach ($row in $seriesRows) {
     foreach ($field in @(
             "series_id", "competition_id", "region", "patch", "scheduled_start_utc", "best_of",
             "team_1_id", "team_1_name", "team_2_id", "team_2_name", "team_1_score", "team_2_score",
-            "winner_team_id", "mapping_evidence_id", "result_evidence_id", "market_id",
-            "market_winner_outcome_index", "market_resolution_evidence_id", "duplicate_candidate_count"
+            "winner_team_id", "mapping_evidence_id", "result_evidence_id", "duplicate_candidate_count"
         )) {
         if ([string]::IsNullOrWhiteSpace([string]$row.$field)) {
             throw "HIST-003 缺少质量审查必需字段：series_id=$($row.series_id), field=$field"
@@ -168,9 +167,6 @@ foreach ($row in $seriesRows) {
             winner_team_id = [string]$row.winner_team_id
             mapping_evidence_id = [string]$row.mapping_evidence_id
             result_evidence_id = [string]$row.result_evidence_id
-            market_id = [string]$row.market_id
-            market_winner_outcome_index = [int]$row.market_winner_outcome_index
-            market_resolution_evidence_id = [string]$row.market_resolution_evidence_id
             duplicate_candidate_count = [int]$row.duplicate_candidate_count
         })
 }

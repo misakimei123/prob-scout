@@ -58,7 +58,7 @@ flowchart LR
 |---|---|---|
 | M0 | `PS-001`–`PS-006` | 可运行的最小 Rust 研究骨架 |
 | M1 | `DATA-001`–`DATA-010` | Gate 0：数据是否值得继续 |
-| M2 | `HIST-001`–`HIST-006` | 可复现且无未来泄漏的数据集 |
+| M2 | `HIST-001`–`HIST-010` | 可复现且无未来泄漏的数据集 |
 | M3 | `MODEL-001`–`MODEL-007` | Gate 1：概率模型是否有信息价值 |
 | M4 | `BACK-001`–`BACK-009` | Gate 2：双策略历史证据 |
 | M5 | `LIVE-001`–`LIVE-009`、`REAL-001`–`REAL-003` | Gate 3：本地 Paper、真实 smoke 和双策略小资金链路是否可靠 |
@@ -261,13 +261,41 @@ M1 结论：`Conditional Go`。允许进入 M2/M3 的 Grade C 信号研究；不
 - 验收：每个缺失关键字段都有排除或降级规则；报告能重复生成。
 - 证据：2026-08-12 新增 `src/data_quality.rs`、`src/bin/build_data_quality_report.rs`、`research/build_data_quality_report.ps1` 与 `docs/DATA_QUALITY_REPORT.md`。真实报告覆盖 HIST-003/004/005 的 23 个 series：必填 Series/Feature 缺失为 0，晚于 `T-15m` cutoff 的 source time 为 0，跨数据集成员和 final test commitment 重建一致；时间只覆盖 4 个 UTC 日期、1 个年份、单一 Patch `26.15`，6 个赛区。Same-Patch history 缺失 3/46（6.52%）按合同保留并降级，不伪造 0% 胜率；DATA-009 execution-grade snapshot 缺失 50/50，全部 Grade C。IQR 标记 same-Patch count 4 个、rest 2 个，只进入 review。报告版本 `2026-08-12.e678afb.hist006-v4` SHA-256 为 `eddd8534144ffdcd9a1ec0a15052395922a7c3675ede12dc768af1982f8a86a2`，相同输入双构建 hash 一致；M2 Gate 明确为 `NotReadyForM3`。
 
+### [x] HIST-007 解耦 Series Result 与 Market Resolution Link
+
+- 依赖：HIST-003、HIST-006 Gate 结论。
+- 输出：不要求预测市场的纯 `Series Result` 合同，以及按 `(series_id, market_id)` 独立校验的可选 `Market Resolution Link`。
+- 验收：无 market link 的完整 BO3/BO5 可进入结果数据集；存在 link 时仍须满足 closed/resolved、二元 outcome 顺序、唯一 0/1 winner 与 series winner 一致；市场证据有无不得改变纯结果字节；Market Baseline、策略和 PnL 只能消费 linked 子集。
+- 证据：2026-08-13 更新 `src/series_result.rs`、`research/build_series_result_dataset.ps1`、HIST-006 兼容读取与相关合同文档。8 个 `series_result` 定向测试覆盖 marketless 构建、独立 link、winner 冲突、未知 series、稳定去重和冲突拒绝。固定 23 场分别以 `-SkipMarketResolution` 和 linked 模式真实重建：两条路径的纯结果 SHA-256 均为 `336f48a31f313bedce04b499865b7a7bd10657adf7774808cafae1a274ae5a8c`；linked 模式另生成 23 行、SHA-256 `cbc49d9ac8e5baedaf337b6ee618fd9d7bbc4df24a07ca73a2e3c1345a6e5946` 的 market link dataset，两份 manifest 均通过 Rust 校验。纯结果继续重放 HIST-004/005/006，特征、split 和质量报告 hash 与拆分前一致，Gate 仍为 `NotReadyForM3`。最终 `cargo fmt --check`、`cargo check --locked`、63 个 library tests、5 个 binary targets、PowerShell parser 与 `git diff --check` 全部通过。
+
+### [x] HIST-008 构建多时间段、多 Patch 历史候选语料
+
+- 依赖：HIST-007。
+- 输出：分页、不可变的 Leaguepedia MatchSchedule/ScoreboardGames raw，以及 source-identity `Historical Series Candidate` 和逐项 rejection audit。
+- 验收：至少 700 个 ready-for-identity BO3/BO5 候选、60 个 UTC 日期和 3 个 Patch source key；MatchSchedule 与 games 分开采集，缺 game 不得静默消失；所有候选保留 Scheduled Start、实际 completed time、双方/competition source key 和 result evidence；相同输入输出确定；Canonical identity 不得猜测。
+- 证据：2026-08-13 新增 `src/historical_candidates.rs`、`src/bin/build_historical_candidate_audit.rs`、`research/build_historical_candidate_corpus.ps1` 与 `docs/HISTORICAL_CANDIDATE_CORPUS.md`。2025-01-01 至 2025-07-01 半开范围分页读取 20 个 MatchSchedule page（9,935 rows）和 28 个 ScoreboardGames page（13,987 rows），审计 9,935 个 MatchId，得到 2,061 个 ready-for-identity candidate、7,874 个显式 rejection，覆盖 170 个 UTC 日期、13 个 Patch source key、BO3 1,617/BO5 444。候选涉及 468 个 team source key、146 个 competition source key，未自动生成 Canonical ID。dataset SHA-256 为 `e80c7dcdff55b5f9c0b92e1669e6e95fdbb1a81a8c35bee339cad7ff7b43daa5`；相同输入双构建一致，48/48 raw hash、output hash 与 manifest 引用复核通过。9 个 HIST-008 定向测试、全库 72 个 library tests、6 个 binary targets、`cargo fmt --check`、`cargo check --locked`、PowerShell parser 与 `git diff --check` 全部通过。
+
+### [x] HIST-009 审计历史候选的时间化 Identity Coverage
+
+- 依赖：HIST-002、HIST-008。
+- 输出：逐 series 的 team/competition `Resolved`、`Missing`、`Ambiguous` 结果，以及按 source key 聚合的人工补证队列。
+- 验收：覆盖全部 candidates；只使用 observation time 有效的显式 evidence；Missing/Ambiguous 均 fail closed；不得用 fuzzy/slug 或当前名称倒推；相同输入输出确定并具备完整 lineage。
+- 证据：2026-08-13 新增 `src/identity_coverage.rs`、`src/bin/build_identity_coverage_audit.rs`、`research/build_identity_coverage_audit.ps1` 与 `docs/IDENTITY_COVERAGE_AUDIT.md`。真实审计覆盖 HIST-008 全部 2,061 candidates：现有 HIST-002 evidence 仅在 2026-08 DATA-008 观测秒内有效，因此 2025H1 得到 fully resolved 0、blocked 2,061；team occurrence 为 Resolved 0 / Missing 4,122 / Ambiguous 0，competition 为 0 / 2,061 / 0。4,122 + 2,061 个缺口聚合为 614 条 review queue（468 team、146 competition）。dataset SHA-256 为 `a868952c4e6e1b0872d5786faa338d5c52dcefed724b15a9969252e263529b82`；相同输入双构建一致，upstream/output/3 份 raw snapshot hash 与 manifest 引用一致。5 个 HIST-009 定向测试、全仓 77 个 Rust tests、`cargo fmt --check`、`cargo check --locked`、PowerShell parser 与 `git diff --check` 全部通过。
+
+### [x] HIST-010 补充 2025 时间化 Identity Evidence 并复审 M2 Gate
+
+- 依赖：HIST-009。
+- 输出：可回溯的 2025 team/competition identity periods、更新后的 coverage audit，以及重建的 HIST-003–HIST-006。
+- 验收：只从明确来源证据建立 Canonical identity；每条 period 有有效区间和 evidence ref；不得根据 slug/fuzzy 自动确认；重建后重新核对 eligible 数量、时间/赛区/Patch 覆盖和 leakage，再独立判定 M2 Gate。
+- 证据：2026-08-13 新增 `src/historical_identity.rs`、`src/bin/build_historical_identity_audit.rs`、`src/bin/write_historical_series_results.rs`、`research/build_historical_identity_evidence.ps1`、`research/build_expanded_series_result_dataset.ps1` 与 `docs/HISTORICAL_IDENTITY_EVIDENCE.md`。完整分页保存 5,779 条 TeamRedirects 和 10,421 条 Tournaments raw；只接受 `AllName -> canonical page` 与 `OverviewPage -> League/Region` exact relation，并与对应 MatchSchedule 时点组合成 1 秒 identity period。370/468 team keys、146/146 competition keys resolved，得到 1,778 fully resolved、283 blocked、98 条剩余 queue。重建 Series/Feature/Split/Quality 为 1,778 rows，覆盖 170 个 UTC 日期、13 Patch、6 Region，3,556 个 team-side source time leakage 为 0；split 为 325/349/748/356，final membership SHA-256 为 `c5b7295b8363bc62c4cbf8d1c0edc798179fa09ad6634060f5207b1397a39f1d`。Identity/Series/Feature/Split/Quality SHA-256 分别为 `e01d8a1fbcf547db23cff33b285a00a95cd663d42953fffde06069931a70fe50`、`9e7a1c2d23b13570f16329e733a13457c997826bbde9fcb6fa2ce0c00334ae99`、`3a29cbfc7a9311b6bf36837da0fc2c24df115175460251bab862c6de89d50ab3`、`1ff428ae74f1a4a7d32dc033244f0aa74ff6268a818303258a7a96c01d699258`、`9a32f02e0e1a348ce01a7603163b8ac55bb14bdfd59975f2d40852cd45b92342`。Identity、Series、Feature 和 Quality 重放一致，全部 manifest/raw/upstream/output hash 复核通过；全仓 84 个 Rust tests、`cargo fmt --check`、`cargo check --locked`、PowerShell parser 与 `git diff --check` 通过。M2 Gate 更新为 `ReadyForM3`。
+
 ### M2 完成检查（历史数据就绪）
 
-- [x] 至少500场 eligible series，或明确记录不足原因：当前仅 23/500，来源于固定 DATA-008 的 50 个市场中 29 个 `Matched` 再排除 6 个 BO1；不足原因和扩展路径已记录。
-- [x] 时间防泄漏测试通过：46 个 team-side feature source time 均不晚于 `T-15m`，追加赛后数据不会改变早期快照。
-- [x] 数据集可由脚本从 raw/upstream manifest 重复生成：HIST-006 同输入连续生成两次，报告 SHA-256 一致。
+- [x] 至少500场 eligible series：HIST-010 得到 1,778/500；其余 283 candidates 因 98 个 team source keys 未解析继续 fail closed。
+- [x] 时间防泄漏测试通过：3,556 个 team-side feature source time 均不晚于 `T-15m`，追加赛后数据不会改变早期快照。
+- [x] 数据集可由脚本从 raw/upstream manifest 重复生成：Identity、Series、Feature 与 Quality 同输入重放 hash 一致，五层 manifest lineage 复核通过。
 
-M2 完成检查的证据项已闭合，但 Gate 判定为 `NotReadyForM3`：23 场、4 个 UTC 日期、单一 Patch 无法支持模型开发与 final test 结论。不得因任务勾选完成而进入 MODEL-001；须先扩展多时间段、多 Patch 的 eligible series 并重跑 M2 Gate。
+M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1,778 条 eligible Series Result 超过预注册 500 条硬门槛，覆盖 170 个 UTC 日期、13 Patch、6 Region，且 3,556 个 team-side feature source time leakage 为 0。该结论只授权进入 Constant/Elo/统计模型开发；单一年份、same-Patch unavailable 41.09%、50/50 Grade C 市场证据和 98 条 unresolved identity queue 继续作为明确限制，不授权 execution/PnL 结论。
 
 ## 7. M3：概率模型
 
@@ -573,5 +601,9 @@ M2 完成检查的证据项已闭合，但 Gate 判定为 `NotReadyForM3`：23 �
 20. `HIST-004`：已生成固定 `T-15m` 的 23 行赛前特征快照；每个基础特征带最新来源时间，目标赛后字段被类型合同拒绝，晚于 cutoff 的历史记录不会改变快照。
 21. `HIST-005`：已按连续 UTC 日期窗口固定 train/validation/calibration/final test 为 3/7/6/7；final test 在调参 manifest 中只发布 count 与 membership commitment。
 22. `HIST-006`：已生成可重复的数据质量报告；M2 Gate 为 `NotReadyForM3`，原因是仅 23/500、4 个 UTC 日期和单一 Patch，且市场证据 50/50 为 Grade C。
+23. `HIST-007`：已将纯 `Series Result` 与可选 `Market Resolution Link` 解耦；marketless 赛事可进入模型语料，linked 子集才允许进入 Market Baseline、策略与 PnL 研究。
+24. `HIST-008`：已建立 2025 上半年 Leaguepedia 历史候选 corpus；2,061 个 ready-for-identity candidate 覆盖 170 个 UTC 日期和 13 个 Patch source key，7,874 个不合格 series 保留明确 rejection。
+25. `HIST-009`：已对 2,061 candidates 执行 Scheduled Start 时点 identity coverage；现有 2026 evidence 对 2025H1 无 active period，0 条 fully resolved，614 条聚合补证队列完整保留。
+26. `HIST-010`：以 exact TeamRedirects/Tournaments relation 补充事件时点 identity evidence，得到 1,778 eligible Series Result 并重建 Feature/Split/Quality；M2 Gate 更新为 `ReadyForM3`。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-006` 均已实现并记录证据，但数据就绪 Gate 为 `NotReadyForM3`。下一步不是 `MODEL-001`，而是扩展多时间段、多 Patch 的历史 eligible series 至至少 500，并重建 HIST-002–HIST-006 后复审 M2 Gate。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`。下一任务是 `MODEL-001` Constant Baseline；仍不得提前进入 Market Baseline、策略、PnL 或执行开发。

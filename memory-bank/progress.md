@@ -1,6 +1,6 @@
 # Progress
 
-更新日期：2026-08-12
+更新日期：2026-08-13
 
 ## 已完成
 
@@ -21,9 +21,13 @@
 - M2：`HIST-004` 23 行固定 `T-15m` Feature Snapshot；基础 team form 特征携带最新来源时间，目标赛后字段被拒绝，历史只按 Leaguepedia 精确 source key 且 cutoff 后记录不可见。
 - M2：`HIST-005` 连续半开 UTC 时间窗口；23 场按 3/7/6/7 划分，final test 在调参阶段只发布 7 行 membership commitment，显式 release 需冻结模型与评估输入。
 - M2：`HIST-006` 可重复数据质量报告；23/500、4 个 UTC 日期、单一 Patch，M2 Gate 为 `NotReadyForM3`。必填字段和时间泄漏为 0，Same-Patch unavailable 3/46，市场执行级证据缺失 50/50。
+- M2：`HIST-007` 纯 `Series Result` 与可选 `Market Resolution Link` 解耦；marketless/linked 双模式得到相同纯结果，市场 link 独立 lineage 和 fail-closed 校验完成，下游 HIST-004/005/006 兼容重放通过。
+- M2：`HIST-008` 2025 上半年 Leaguepedia 历史候选 corpus；9,935 个 MatchId 审计为 2,061 个 ready-for-identity candidate 与 7,874 个 rejection，覆盖 170 个 UTC 日期和 13 个 Patch source key，分页 raw 与 manifest 可重放。
+- M2：`HIST-009` 时间化 identity coverage audit；2,061 candidates 全量审计，现有 2026 evidence 对 2025H1 得到 fully resolved 0、blocked 2,061，6,183 个 Missing occurrence 聚合为 614 条补证队列，输出与 manifest 可重放。
+- M2：`HIST-010` exact Cargo identity evidence 与 Gate 复审；370/468 team keys、146/146 competition keys resolved，生成 1,778 Series/Feature rows、325/349/748/356 split，M2 Gate 更新为 `ReadyForM3`。
 
 ## 待完成
 
-- M2：先扩展多时间段、多 Patch 的 eligible series 并重建 HIST-002–HIST-006，复审数据就绪 Gate；在此之前 M3–M6 不开始，M7 GPT 增强延后。
+- M3：下一任务仅执行 `MODEL-001` Constant Baseline；保持 final test sealed，不提前进入 MODEL-002、Market Baseline、策略或执行开发。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。
