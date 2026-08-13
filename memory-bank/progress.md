@@ -25,9 +25,10 @@
 - M2：`HIST-008` 2025 上半年 Leaguepedia 历史候选 corpus；9,935 个 MatchId 审计为 2,061 个 ready-for-identity candidate 与 7,874 个 rejection，覆盖 170 个 UTC 日期和 13 个 Patch source key，分页 raw 与 manifest 可重放。
 - M2：`HIST-009` 时间化 identity coverage audit；2,061 candidates 全量审计，现有 2026 evidence 对 2025H1 得到 fully resolved 0、blocked 2,061，6,183 个 Missing occurrence 聚合为 614 条补证队列，输出与 manifest 可重放。
 - M2：`HIST-010` exact Cargo identity evidence 与 Gate 复审；370/468 team keys、146/146 competition keys resolved，生成 1,778 Series/Feature rows、325/349/748/356 split，M2 Gate 更新为 `ReadyForM3`。
+- M3：`MODEL-001` 训练期总体先验 Constant Baseline；325 条 train 得到 `P(team_1_win)=0.5230769231`，validation/calibration Brier 与 Log Loss 可重复计算，356 条 final test 保持 sealed。
 
 ## 待完成
 
-- M3：下一任务仅执行 `MODEL-001` Constant Baseline；保持 final test sealed，不提前进入 MODEL-002、Market Baseline、策略或执行开发。
+- M3：下一任务仅执行 `MODEL-002` Elo Baseline；保持 final test sealed，不提前进入 MODEL-003、统计模型、策略或执行开发。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。

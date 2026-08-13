@@ -301,11 +301,12 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 
 目标：先证明模型概率有信息价值，再谈策略收益。
 
-### [ ] MODEL-001 实现 Constant Baseline
+### [x] MODEL-001 实现 Constant Baseline
 
 - 依赖：M2 完成检查
 - 输出：50%或训练期总体基准概率。
 - 验收：final test 指标可计算。
+- 证据：2026-08-13 新增 `pyproject.toml`、`uv.lock`、`research/model001_constant_baseline.py`、`research/build_constant_baseline.ps1`、`tests/test_model001_constant_baseline.py` 与 `docs/CONSTANT_BASELINE.md`。使用 scikit-learn `DummyClassifier(strategy="prior")` 仅从 325 条 train label 拟合 `P(team_1_win)=0.5230769231`；validation 349 条的 Brier/Log Loss 为 `0.2479537478/0.6890521453`，calibration 748 条为 `0.2474473942/0.6880387182`。356 条 final test 保持 sealed，artifact 不含 final IDs 或指标，但记录 Brier/Log Loss 计算合同及 release 所需三个冻结 hash。5 个 Python 定向测试覆盖训练隔离、final ID 拒绝、winner 校验和单类 slice 指标；真实 artifact 双构建 hash 一致，SHA-256 为 `39e55ce8f3f5e17bf69ba9c44c6eba994336e1738cc608aeb4431d49b940b3b2`。
 
 ### [ ] MODEL-002 实现 Elo Baseline
 
@@ -605,5 +606,6 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 24. `HIST-008`：已建立 2025 上半年 Leaguepedia 历史候选 corpus；2,061 个 ready-for-identity candidate 覆盖 170 个 UTC 日期和 13 个 Patch source key，7,874 个不合格 series 保留明确 rejection。
 25. `HIST-009`：已对 2,061 candidates 执行 Scheduled Start 时点 identity coverage；现有 2026 evidence 对 2025H1 无 active period，0 条 fully resolved，614 条聚合补证队列完整保留。
 26. `HIST-010`：以 exact TeamRedirects/Tournaments relation 补充事件时点 identity evidence，得到 1,778 eligible Series Result 并重建 Feature/Split/Quality；M2 Gate 更新为 `ReadyForM3`。
+27. `MODEL-001`：已实现训练期总体先验 Constant Baseline；固定 `P(team_1_win)=0.5230769231`，development Brier/Log Loss 可重复计算，356 条 final test 继续 sealed。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`。下一任务是 `MODEL-001` Constant Baseline；仍不得提前进入 Market Baseline、策略、PnL 或执行开发。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`。下一任务是 `MODEL-002` Elo Baseline；仍不得提前进入 MODEL-003、统计模型、策略、PnL 或执行开发。

@@ -1,8 +1,8 @@
 # ProbScout 开源依赖清单
 
-> 审核日期：2026-08-12
+> 审核日期：2026-08-13
 >
-> 项目阶段：M0 / Research First
+> 项目阶段：M3 / Research First
 >
 > 原则：这里只批准依赖方向。除已经写入 `Cargo.toml` 的库外，其他库在对应 Task 开始时再确认当前版本并加入锁文件。
 
@@ -38,14 +38,14 @@
 
 ## 3. Python 研究环境
 
-Python 只用于数据处理、模型训练、校准和统计报告，不进入 Rust 常驻服务。当前不创建 Python 环境，也不固定尚未使用的版本。
+Python 只用于数据处理、模型训练、校准和统计报告，不进入 Rust 常驻服务。MODEL-001 已使用 `pyproject.toml` + `uv.lock` 固定 Python 3.12、NumPy 与 scikit-learn；后续 Python 依赖继续通过同一 lock 管理。
 
 | 用途 | 选用库 | 状态 | License | 选用原因 | 主要备选与结论 |
 |---|---|---|---|---|---|
 | 表格与 ETL | [`pandas`](https://pandas.pydata.org/docs/) | 已选定 | BSD-3-Clause | 对个人研究、时间序列、CSV 和数据质量检查最直接 | `polars` 性能更强，但当前数据规模不值得增加第二套 DataFrame API |
 | Parquet | [`PyArrow`](https://arrow.apache.org/docs/python/parquet.html) | 已选定 | Apache-2.0 | 官方 Apache Arrow/Parquet 实现，可与 pandas 直接互操作 | Rust `parquet` crate、Polars 均延后，避免把分析依赖带入常驻服务 |
-| 概率模型与校准 | [`scikit-learn`](https://scikit-learn.org/stable/modules/calibration.html) | 已选定 | BSD-3-Clause | 提供 Logistic Regression、概率校准、Brier、Log Loss 和标准评估能力 | XGBoost/LightGBM 仅在简单模型明确不足后评估；不自行实现优化器 |
-| 数值计算 | [`NumPy`](https://numpy.org/doc/stable/) | 已选定 | BSD-3-Clause | pandas 和 scikit-learn 的基础依赖，也满足 Elo、bootstrap 和矩阵计算 | 不另建 Rust 数值训练栈 |
+| 概率模型与校准 | [`scikit-learn`](https://scikit-learn.org/stable/modules/calibration.html) `1.9.0` | 已使用 | BSD-3-Clause | MODEL-001 使用 `DummyClassifier(strategy="prior")`、Brier 和 Log Loss；后续提供 Logistic Regression 与概率校准 | XGBoost/LightGBM 仅在简单模型明确不足后评估；不自行实现优化器 |
+| 数值计算 | [`NumPy`](https://numpy.org/doc/stable/) `2.5.2` | 已使用 | BSD-3-Clause | MODEL-001 为 scikit-learn 提供固定形状输入和概率数组，也满足后续 Elo、bootstrap 和矩阵计算 | 不另建 Rust 数值训练栈 |
 | 统计检验 | [`SciPy`](https://docs.scipy.org/doc/scipy/) | 条件使用 | BSD-3-Clause | 需要 bootstrap、分布或统计检验时直接复用 | 简单汇总优先使用 NumPy/scikit-learn，避免无需求引入 |
 | 图表 | [`matplotlib`](https://matplotlib.org/stable/) | 条件使用 | PSF-based | 足以生成 calibration curve、权益曲线和 drawdown 静态图 | 不开发 Web Dashboard；seaborn 仅在确有统计图需求时再加 |
 

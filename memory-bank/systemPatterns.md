@@ -23,3 +23,4 @@
 - HIST-008 在 Canonical identity 前增加 source-identity candidate 层：MatchSchedule 与 ScoreboardGames 分页分开采集，避免缺 game 的 series 被 inner join 静默过滤；完整候选保留 Scheduled Start、实际 completed time、team/competition source key、Patch 和 result evidence，所有不合格项进入显式 rejection audit。candidate 数量不能替代 eligible series 数量。
 - HIST-010 historical identity 只接受 exact TeamRedirects/Tournaments relation，并与具体 MatchSchedule 事件时点组合成 1 秒 period；Canonical ID 使用 exact source identity hash，不使用 slug/fuzzy/source-key fallback。批量 identity coverage 必须先全表校验一次，再使用 validated resolver，避免逐 occurrence 重复扫描。
 - 大规模 HIST-004 source-key 查询按固定 team batch 分页；跨 batch 的同一 `(MatchId, game number)` 只有事实签名一致才去重，冲突 fail closed。
+- M3 Python 研究环境使用 `pyproject.toml` + `uv.lock`；MODEL-001 Constant Baseline 只拟合 train split 的 `team_1_win` class prior，validation/calibration 只评估，final test 保持 sealed。

@@ -67,3 +67,7 @@ HIST-010 只用 `TeamRedirects.AllName -> canonical page` 和 `Tournaments.Overv
 ## 2026-08-13 — M2 Gate 更新为 ReadyForM3
 
 本决策 supersede 2026-08-12 “M2 数据质量 Gate 为 NotReadyForM3”。HIST-010 重建得到 1,778/500 eligible series、170 个 UTC 日期、13 Patch、6 Region，3,556 个 team-side feature source time leakage 为 0，因此按预注册的 volume 硬门槛更新为 `ReadyForM3`。影响是允许开始 Constant/Elo/统计概率模型；但单一年份、41.09% same-Patch unavailable、98 条 unresolved identity queue 和 50/50 Grade C market evidence 仍是 finding，Market Baseline、Edge、PnL 与 execution readiness 不随本 Gate 自动放行。
+
+## 2026-08-13 — Constant Baseline 只拟合 train class prior
+
+MODEL-001 使用 scikit-learn `DummyClassifier(strategy="prior")`，正类固定为 `team_1_win`，只从 train split 的 label 总体比例拟合一个无特征常数概率。validation/calibration 只评估同一概率，final test 在冻结前只保留 count、membership commitment 和 access policy。原因是 50% 虽简单但忽略当前标签方向基准率，而使用所有 development labels 会把 validation/calibration 信息泄漏进模型。影响是后续 Elo/统计模型统一与 train-prior Constant Baseline 比较；final-test release 仍需要 model artifact/config/evaluation code 三个 SHA-256，MODEL-001 不提前执行。

@@ -80,6 +80,10 @@ _Avoid_: Random split, row split
 调参阶段只公开 final test 的时间窗、数量和成员 SHA-256 commitment，不公开成员 ID；模型、配置与评估代码冻结后才允许显式 release。
 _Avoid_: Hidden flag, test set label
 
+**Constant Baseline**:
+只用 train split 的二元 label 总体比例，对所有赛事输出同一个 `team_1_win` 概率的无特征基准；validation/calibration 只评估，final test 在冻结前保持 sealed。
+_Avoid_: 50% hard label, all-split prior, market baseline
+
 **Data Quality Gate**:
 在模型开发前对 eligible series 数量、时间/赛区/Patch 覆盖、关键字段缺失、时间防泄漏、异常分布和历史市场真实性等级作出的可重复判定。`NotReadyForM3` 表示数据构建任务可以完成，但模型阶段仍被证据门禁阻塞。
 _Avoid_: Report completed, pipeline passed

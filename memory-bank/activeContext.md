@@ -21,10 +21,11 @@
 - `HIST-010` 用 exact `TeamRedirects.AllName -> canonical page` 与 `Tournaments.OverviewPage -> League/Region` relation，结合每条 MatchSchedule 赛事时点建立 1 秒 identity period；370/468 team keys 和 146/146 competition keys resolved，得到 1,778 fully resolved、283 blocked、98 条剩余 review queue。Identity dataset SHA-256 为 `e01d8a1fbcf547db23cff33b285a00a95cd663d42953fffde06069931a70fe50`。
 - HIST-003–HIST-006 已重建为 1,778 Series/Feature rows、325/349/748/356 split；覆盖 170 个 UTC 日期、13 Patch、6 Region，3,556 个 team-side source time leakage 为 0。Series/Feature/Split/Quality SHA-256 分别为 `9e7a1c2d23b13570f16329e733a13457c997826bbde9fcb6fa2ce0c00334ae99`、`3a29cbfc7a9311b6bf36837da0fc2c24df115175460251bab862c6de89d50ab3`、`1ff428ae74f1a4a7d32dc033244f0aa74ff6268a818303258a7a96c01d699258`、`9a32f02e0e1a348ce01a7603163b8ac55bb14bdfd59975f2d40852cd45b92342`。
 - 最近验证：Identity/Series/Feature/Quality 重放一致；33 个 identity raw、40 个 feature raw、全部 upstream/output hash 与五层 manifest 引用一致。全仓 84 个 Rust tests、`cargo fmt --check`、`cargo check --locked`、三个变更脚本 parser 与 `git diff --check` 通过。M2 Gate 依据预注册 1,778/500 volume 硬门槛更新为 `ReadyForM3`；单一年份、41.09% same-Patch unavailable 和 50/50 Grade C market evidence 仍是明确限制。
+- `MODEL-001` 已使用 scikit-learn `DummyClassifier(strategy="prior")` 实现训练期总体先验 Constant Baseline。只消费 325 条 train label，得到 `P(team_1_win)=0.5230769231`；validation 349 条 Brier/Log Loss 为 `0.2479537478/0.6890521453`，calibration 748 条为 `0.2474473942/0.6880387182`。356 条 final test 未读取成员、未计算指标，artifact SHA-256 为 `39e55ce8f3f5e17bf69ba9c44c6eba994336e1738cc608aeb4431d49b940b3b2`。
 
 ## 下一任务
 
-下一任务是 `MODEL-001` Constant Baseline，只消费 train/validation/calibration 允许的纯 Series Result/Feature Snapshot，不读取 sealed final test IDs。不得提前进入 MODEL-002、Market Baseline、策略、PnL 或执行开发。
+下一任务是 `MODEL-002` Elo Baseline，必须按比赛时间顺序更新 rating，并覆盖首次参赛和跨赛区测试；只消费 development split，不读取 sealed final test IDs。不得提前进入 MODEL-003、统计模型、策略、PnL 或执行开发。
 
 关键验收边界：
 
@@ -54,4 +55,4 @@
 
 ## 首次检查
 
-进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/TASK_BREAKDOWN.md` 的 `MODEL-001`、`docs/HISTORICAL_IDENTITY_EVIDENCE.md`、最新 data-quality report、`docs/TEMPORAL_SPLIT_DATASET.md` 与 `CONTEXT.md`；不得读取 sealed final test IDs 或提前进入后续模型任务。
+进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/TASK_BREAKDOWN.md` 的 `MODEL-002`、`docs/CONSTANT_BASELINE.md`、`docs/HISTORICAL_IDENTITY_EVIDENCE.md`、最新 data-quality report、`docs/TEMPORAL_SPLIT_DATASET.md` 与 `CONTEXT.md`；不得读取 sealed final test IDs 或提前进入后续模型任务。
