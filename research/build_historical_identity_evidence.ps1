@@ -73,12 +73,12 @@ function Save-CargoPage(
         "{0}={1}" -f [uri]::EscapeDataString([string]$entry.Key), [uri]::EscapeDataString([string]$entry.Value)
     }
     $uri = "https://lol.fandom.com/wiki/Special:CargoExport?{0}" -f ($queryPairs -join "&")
-    $temporaryPath = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist010-page-{0}.tmp" -f [guid]::NewGuid().ToString("N"))
+    $temporaryPath = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-historical-identity-page-{0}.tmp" -f [guid]::NewGuid().ToString("N"))
     try {
         $response = Invoke-WebRequest `
             -UseBasicParsing `
             -Uri $uri `
-            -Headers @{ "User-Agent" = "prob-scout-research/0.1 (HIST-010 identity evidence)" } `
+            -Headers @{ "User-Agent" = "prob-scout-research/0.1 (historical identity evidence)" } `
             -TimeoutSec 60 `
             -OutFile $temporaryPath `
             -PassThru
@@ -184,7 +184,7 @@ function Invoke-HistoricalIdentityBuilder(
     $arguments += @("--output", $Output)
     & cargo @arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "HIST-010 Rust historical identity audit 构建失败。"
+        throw "历史 identity evidence Rust 构建失败。"
     }
 }
 
@@ -198,18 +198,18 @@ else {
 $CandidateManifest = (Resolve-Path -LiteralPath $CandidateManifest).Path
 & cargo run --quiet --locked --bin validate_dataset_manifest -- $CandidateManifest
 if ($LASTEXITCODE -ne 0) {
-    throw "HIST-008 upstream Dataset Manifest v1 校验失败。"
+    throw "Historical Candidate upstream Dataset Manifest v1 校验失败。"
 }
 $candidateManifestDocument = Get-Content -Raw -LiteralPath $CandidateManifest | ConvertFrom-Json
 if ([string]$candidateManifestDocument.dataset.name -ne "lol-historical-series-candidates") {
-    throw "CandidateManifest 不是 HIST-008 historical candidate dataset。"
+    throw "CandidateManifest 不是 historical candidate dataset。"
 }
 $candidateAudit = Join-Path $repositoryRoot ([string]$candidateManifestDocument.output.relative_path)
 if (-not (Test-Path -LiteralPath $candidateAudit -PathType Leaf)) {
-    throw "HIST-008 upstream output 不存在：$candidateAudit"
+    throw "Historical Candidate upstream output 不存在：$candidateAudit"
 }
 if ((Get-Sha256 $candidateAudit) -ne [string]$candidateManifestDocument.output.sha256) {
-    throw "HIST-008 upstream output hash 与 manifest 不一致。"
+    throw "Historical Candidate upstream output hash 与 manifest 不一致。"
 }
 
 $gitCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
@@ -217,7 +217,7 @@ if ($LASTEXITCODE -ne 0 -or $gitCommit -notmatch '^[0-9a-f]{40}$') {
     throw "无法读取生成时 Git commit。"
 }
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = "{0}.{1}.hist010" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd"), $gitCommit.Substring(0, 7)
+    $Version = "{0}.{1}.historical-identity" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd"), $gitCommit.Substring(0, 7)
 }
 if ($Version -notmatch '^[A-Za-z0-9._-]+$') {
     throw "Version 只能包含 ASCII 字母、数字、点、下划线和连字符。"
@@ -263,8 +263,8 @@ $tournamentFetch = Get-PagedCargoRows `
     -RepositoryRoot $repositoryRoot `
     -Force:$Refresh
 
-$temporaryOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist010-output-{0}.json" -f [guid]::NewGuid().ToString("N"))
-$replayOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist010-replay-{0}.json" -f [guid]::NewGuid().ToString("N"))
+$temporaryOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-historical-identity-output-{0}.json" -f [guid]::NewGuid().ToString("N"))
+$replayOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-historical-identity-replay-{0}.json" -f [guid]::NewGuid().ToString("N"))
 try {
     Invoke-HistoricalIdentityBuilder `
         -CandidateAudit $candidateAudit `
@@ -277,25 +277,25 @@ try {
         -TournamentPaths $tournamentFetch.Paths `
         -Output $replayOutput
     if ((Get-Sha256 $temporaryOutput) -ne (Get-Sha256 $replayOutput)) {
-        throw "HIST-010 相同输入双重构建不一致。"
+        throw "历史 identity evidence 相同输入双重构建不一致。"
     }
 
     $audit = Get-Content -Raw -LiteralPath $temporaryOutput | ConvertFrom-Json
     $candidateCount = [int]$candidateManifestDocument.output.row_count
     if ([int]$audit.summary.candidate_count -ne $candidateCount) {
-        throw "HIST-010 未覆盖全部 upstream candidates。"
+        throw "历史 identity evidence 未覆盖全部 upstream candidates。"
     }
     if ([int]$audit.summary.fully_resolved_series + [int]$audit.summary.blocked_series -ne $candidateCount) {
-        throw "HIST-010 resolved/blocked series 数量不守恒。"
+        throw "历史 identity evidence resolved/blocked series 数量不守恒。"
     }
     if ([int]$audit.summary.series_result_count -ne [int]$audit.summary.fully_resolved_series) {
-        throw "HIST-010 Series Result 数与 fully resolved series 不一致。"
+        throw "历史 identity evidence 的 Series Result 数与 fully resolved series 不一致。"
     }
     if ([int]$audit.summary.resolved_team_key_count + [int]$audit.summary.unresolved_team_key_count -ne [int]$audit.summary.source_team_key_count) {
-        throw "HIST-010 team source key 数量不守恒。"
+        throw "历史 identity evidence team source key 数量不守恒。"
     }
     if ([int]$audit.summary.resolved_competition_key_count + [int]$audit.summary.unresolved_competition_key_count -ne [int]$audit.summary.source_competition_key_count) {
-        throw "HIST-010 competition source key 数量不守恒。"
+        throw "历史 identity evidence competition source key 数量不守恒。"
     }
 
     New-Item -ItemType Directory -Path $processedDirectory | Out-Null
@@ -376,7 +376,7 @@ $manifestPath = "$datasetPath.manifest.json"
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 -LiteralPath $manifestPath
 & cargo run --quiet --locked --bin validate_dataset_manifest -- $manifestPath
 if ($LASTEXITCODE -ne 0) {
-    throw "HIST-010 Dataset Manifest v1 Rust 校验失败。"
+    throw "历史 identity evidence Dataset Manifest v1 Rust 校验失败。"
 }
 
 [pscustomobject]@{

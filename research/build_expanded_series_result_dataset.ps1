@@ -31,15 +31,15 @@ else {
 $IdentityManifest = (Resolve-Path -LiteralPath $IdentityManifest).Path
 & cargo run --quiet --locked --bin validate_dataset_manifest -- $IdentityManifest
 if ($LASTEXITCODE -ne 0) {
-    throw "HIST-010 identity manifest Rust 校验失败。"
+    throw "历史 identity manifest Rust 校验失败。"
 }
 $identityManifestDocument = Get-Content -Raw -LiteralPath $IdentityManifest | ConvertFrom-Json
 if ([string]$identityManifestDocument.dataset.name -ne "lol-historical-identity-evidence") {
-    throw "IdentityManifest 不是 HIST-010 identity evidence dataset。"
+    throw "IdentityManifest 不是 historical identity evidence dataset。"
 }
 $identityAudit = Join-Path $repositoryRoot ([string]$identityManifestDocument.output.relative_path)
 if ((Get-Sha256 $identityAudit) -ne [string]$identityManifestDocument.output.sha256) {
-    throw "HIST-010 identity output hash 与 manifest 不一致。"
+    throw "历史 identity output hash 与 manifest 不一致。"
 }
 
 $gitCommit = (& git -C $repositoryRoot rev-parse HEAD).Trim()
@@ -47,7 +47,7 @@ if ($LASTEXITCODE -ne 0 -or $gitCommit -notmatch '^[0-9a-f]{40}$') {
     throw "无法读取生成时 Git commit。"
 }
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = "{0}.{1}.hist010-series" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd"), $gitCommit.Substring(0, 7)
+    $Version = "{0}.{1}.historical-series" -f (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd"), $gitCommit.Substring(0, 7)
 }
 if ($Version -notmatch '^[A-Za-z0-9._-]+$') {
     throw "Version 只能包含 ASCII 字母、数字、点、下划线和连字符。"
@@ -57,27 +57,27 @@ if (Test-Path -LiteralPath $processedDirectory) {
     throw "processed version 已存在，禁止覆盖：$processedDirectory"
 }
 
-$temporaryOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist010-series-{0}.csv" -f [guid]::NewGuid().ToString("N"))
-$replayOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist010-series-replay-{0}.csv" -f [guid]::NewGuid().ToString("N"))
+$temporaryOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-historical-series-{0}.csv" -f [guid]::NewGuid().ToString("N"))
+$replayOutput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-historical-series-replay-{0}.csv" -f [guid]::NewGuid().ToString("N"))
 try {
     foreach ($output in @($temporaryOutput, $replayOutput)) {
         & cargo run --quiet --locked --bin write_historical_series_results -- `
             --identity-audit $identityAudit `
             --output $output
         if ($LASTEXITCODE -ne 0) {
-            throw "HIST-010 Series Result CSV 构建失败。"
+            throw "历史 Series Result CSV 构建失败。"
         }
     }
     if ((Get-Sha256 $temporaryOutput) -ne (Get-Sha256 $replayOutput)) {
-        throw "HIST-010 Series Result 相同输入双重构建不一致。"
+        throw "历史 Series Result 相同输入双重构建不一致。"
     }
     $rows = @(Import-Csv -LiteralPath $temporaryOutput)
     $identityAuditDocument = Get-Content -Raw -LiteralPath $identityAudit | ConvertFrom-Json
     if ($rows.Count -ne [int]$identityAuditDocument.summary.series_result_count -or $rows.Count -eq 0) {
-        throw "HIST-010 Series Result 行数与 identity audit 不一致。"
+        throw "历史 Series Result 行数与 identity audit 不一致。"
     }
     if (@($rows.series_id | Sort-Object -Unique).Count -ne $rows.Count) {
-        throw "HIST-010 Series Result 包含重复 series_id。"
+        throw "历史 Series Result 包含重复 series_id。"
     }
     New-Item -ItemType Directory -Path $processedDirectory | Out-Null
     $datasetPath = Join-Path $processedDirectory "series-results.csv"
@@ -146,7 +146,7 @@ $manifestPath = "$datasetPath.manifest.json"
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 -LiteralPath $manifestPath
 & cargo run --quiet --locked --bin validate_dataset_manifest -- $manifestPath
 if ($LASTEXITCODE -ne 0) {
-    throw "HIST-010 Series Result Dataset Manifest v1 校验失败。"
+    throw "历史 Series Result Dataset Manifest v1 校验失败。"
 }
 
 [pscustomobject]@{

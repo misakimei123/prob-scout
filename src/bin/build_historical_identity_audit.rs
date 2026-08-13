@@ -7,7 +7,7 @@ use prob_scout::historical_identity::{
 };
 
 #[derive(Debug, Parser)]
-#[command(about = "Build explicit 2025 Leaguepedia identity evidence and coverage")]
+#[command(about = "Build explicit time-bounded Leaguepedia identity evidence and coverage")]
 struct Args {
     #[arg(long)]
     candidate_audit: PathBuf,

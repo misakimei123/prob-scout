@@ -34,9 +34,10 @@
 - M3：`MODEL-007` Gate 1；release 前回退 sigmoid、选择 raw statistical，冻结 hashes 后唯一一次成功评估 356 场 Final Test。raw 显著劣于 Elo并超过预注册退化线，最终状态 `failed_stop_modeling`，M4 未获授权。
 - M3R：`M3R-001` Gate 1 失败归因；完全相同冻结模型公开重放仍略优于 Elo，Final 的 BO/Region 构成变化和共同 cell 内退化均为实质因素，旧 Final 永久退役。
 - M3R：`M3R-002` 非重叠恢复候选语料；`[2025-07-01,2026-07-01)` 得到 3,759 candidates，覆盖 349 个 UTC 日期、25 Patch、9 Region source value 和 BO3/BO5，且与旧 1,778 条 member/temporal overlap 均为 0。
+- M3R：`M3R-003` 新时间化 identity、Series Result 与 `T-15m` Feature Snapshot；3,759 candidates 中 3,155 fully resolved，604 因缺失 team exact relation 继续 fail closed，Series/Feature 成员一致且 source-time leakage 为 0。
 
 ## 待完成
 
-- M3R：下一任务 `M3R-003`，对新 3,759 candidates 构建 exact、time-bounded identity evidence、Series Result 与 `T-15m` Feature Snapshot。M4 继续阻塞。
+- M3R：下一任务 `M3R-004`，只为新 3,155 条 eligible members 建立 Development splits 与从未公开成员的 sealed Final Test。模型恢复与 M4 继续阻塞。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。

@@ -377,11 +377,12 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 - 验收：与旧 1,778 场 corpus 零成员/时间重叠；分页 raw、rejection audit、Patch/Region/日期覆盖和 Dataset Manifest 完整。
 - 证据：2026-08-13 扩展 `src/historical_candidates.rs` 与 `research/build_historical_candidate_corpus.ps1`，新增恢复边界、旧 corpus upstream、成员/时间双重零重叠和 `OverviewPage -> Region` exact source coverage 合同，并新增 `docs/RECOVERY_CANDIDATE_CORPUS.md`。真实窗口 `[2025-07-01,2026-07-01)` 完整分页保存 34 个 MatchSchedule、48 个 ScoreboardGames、21 个 Tournaments raw page；16,598 个 MatchId 得到 3,759 candidates、12,839 rejections，覆盖 349 个 UTC 日期、25 Patch、9 个 Region source value、BO3 2,819 / BO5 940。旧 1,778 条结束于 `2025-06-30T18:30:00Z`，新 candidate 起于 `2025-07-01T16:00:00Z`，member/temporal overlap 均为 0；3,759/3,759 Region relation exact resolved，0 missing、0 ambiguous，但不在本任务生成 Canonical Competition identity。12 个定向及全仓 87 个 Rust tests、相同输入双构建、`cargo fmt/check --locked`、PowerShell parser、Rust manifest 校验及 103 raw + 1 upstream + output 全量 hash 复核通过；dataset SHA-256 为 `f5c4210a04417392c92801a8d5f9e7d6c2b7c9f2871e63bd6e89d77f3d32860b`。
 
-### [ ] M3R-003 构建新时间化身份、赛果与特征
+### [x] M3R-003 构建新时间化身份、赛果与特征
 
 - 依赖：M3R-002、HIST-010
 - 输出：新 corpus 的 identity coverage、Series Result 与 `T-15m` Feature Snapshot。
 - 验收：继续使用 exact、time-bounded identity evidence；Missing/Ambiguous fail closed，source-time leakage 为 0。
+- 证据：2026-08-13 将 HIST-010 identity builder 泛化为跨年度 exact relation 审核，明确 `Tournaments.Year` 仅为描述字段，Canonical Competition 仍只由候选赛事时点的 `OverviewPage -> League/Region` exact relation 建立，并新增 `docs/RECOVERY_IDENTITY_SERIES_FEATURES.md`。M3R-002 的 3,759 candidates 中，694 个 team source keys 得到 492 Resolved / 202 Missing / 0 Ambiguous，267 个 competition keys 全部 Resolved；最终 3,155 fully resolved、604 fail-closed blocked。重建得到 3,155 条 Series Result 和成员完全一致的 3,155 条 `T-15m` Feature Snapshot，与旧 M2 1,778 场 member overlap 为 0，source-time/snapshot-lead/目标赛后字段 leakage 均为 0。Identity/Series/Feature SHA-256 分别为 `8f3e7aeadc9cf071adbe21fd74becd52126cd720fbe017b45b4755964d7bb331`、`dff9c9ee61cabf0c3a5a0a6aa9518fcd02cf6d28aa02a1cae6d6cd6a7817e6ac`、`8433cc10ee73cab042049d0afe0f81cfc0d96504348346178fb6c4baaa3c7f2b`；Feature cache replay hash 相同，100 个 raw inputs、全部 upstream/output hashes 与 manifests 已复核。全仓 88 个 Rust tests、`cargo fmt/check --locked`、PowerShell parser、三层 manifest 校验与 `git diff --check` 全部通过。
 
 ### [ ] M3R-004 建立新 Development 与 sealed Final Test
 
@@ -664,5 +665,6 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 33. `MODEL-007`：已在冻结 hashes 后完成唯一一次 356 场 Final Test 主评估；raw 显著劣于 Elo，Gate 1 为 `failed_stop_modeling`，`BACK-001` 与 M4 保持阻塞。
 34. `M3R-001`：已完成失败归因并永久退役旧 Final Test；构成变化与共同分段内退化均有实质贡献，下一任务仅授权 `M3R-002` 新数据扩展。
 35. `M3R-002`：已建立 3,759 条新 source-identity candidates；覆盖 349 个日期、25 Patch、9 Region source value 和 BO3/BO5，与旧 1,778 条 member/temporal overlap 均为 0。
+36. `M3R-003`：已为新 candidates 构建跨年度 exact、time-bounded identity evidence；3,155 条 fully resolved Series Result 与 `T-15m` Feature Snapshot 成员一致且 leakage 为 0，604 条因缺失 team relation 继续 fail closed。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-007`，但 Gate 1 最终裁决为 `failed_stop_modeling`。恢复阶段已完成 `M3R-001`–`M3R-002`，下一任务是 `M3R-003`：对新 3,759 candidates 重新构建 exact、time-bounded identity evidence、Series Result 与 `T-15m` Feature Snapshot。M4 的 `BACK-001` 及后续策略、PnL、执行任务继续阻塞。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-007`，但 Gate 1 最终裁决为 `failed_stop_modeling`。恢复阶段已完成 `M3R-001`–`M3R-003`，下一任务是 `M3R-004`：只为新 3,155 条 eligible members 建立连续、唯一、无重叠的 Development 与从未公开成员的 sealed Final Test。M4 的 `BACK-001` 及后续策略、PnL、执行任务继续阻塞。

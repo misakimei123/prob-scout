@@ -103,3 +103,7 @@ M3R-001 将已释放的 356 场 Final Test 永久标记为 `retired_diagnostic_e
 ## 2026-08-13 — 恢复候选必须以旧 corpus upstream 证明双重零重叠
 
 M3R-002 固定 `[2025-07-01,2026-07-01)` 为新 source candidate 时间窗，并把旧 1,778 条 Series Result manifest/output 作为显式 upstream。Rust audit 对 reference/new `series_id` 和 Scheduled Start 同时 fail closed，只有 `member_overlap_count=0`、`temporal_overlap_count=0` 且 `max(old)<min(new)` 才能生成有效恢复语料。`Tournaments.OverviewPage -> Region` exact relation 在本阶段只统计 source coverage，不生成或暗示 Canonical Competition identity，也不合并不同 Region source value。原因是恢复 cohort 的独立性必须由实际旧成员和时间证据证明，而 Region 验收不能提前绕过 M3R-003 的时间化 identity 合同。影响是 3,759 candidates 仍不能计作 eligible Series Result；下一步必须重新执行 Team/Competition identity、结果与 `T-15m` 特征 lineage。
+
+## 2026-08-13 — Tournaments Year 不参与 Historical Identity 判定
+
+M3R-003 移除 HIST-010 identity builder 中仅适用于 2025H1 的 `Tournaments.Year == 2025` 硬编码。`Year` 只保留为来源描述字段；跨年度 Competition identity 仍必须由每条 candidate 的 `OverviewPage` 在 exact `Tournaments.OverviewPage -> League/Region` relation 中唯一解析，并与该 candidate 的 Scheduled Start 组合成事件时点 evidence。原因是年份既不能唯一标识赛事，也不能替代具体赛事页面关系。影响是同一 builder 可覆盖 2025/2026 candidates，但 Missing/Ambiguous 仍 fail closed，禁止 fuzzy、slug、source-key fallback 或按年份自动确认。

@@ -84,3 +84,7 @@ M2 Gate 更新为 `ReadyForM3`，依据是预注册的 eligible-series 硬门槛
 - Leaguepedia 当前页面可能被事后修订，manifest 证明使用的字节，不证明页面在比赛时不可变。
 
 因此下一任务可以是 `MODEL-001` Constant Baseline，但 Market Baseline、Edge Strategy、PnL 和执行结论仍受独立 evidence gate 约束。
+
+## 6. M3R-003 跨年度复用说明
+
+本文件记录 HIST-010 在 2025H1 的原始任务证据。后续 M3R-003 将同一 exact、time-bounded 合同用于 `[2025-07-01,2026-07-01)` 恢复语料，并移除了实现中的单一年份硬编码；`Tournaments.Year` 仅为描述字段，不能替代赛事自身的 `OverviewPage -> League/Region` exact relation。跨年度构建结果与新限制见 `docs/RECOVERY_IDENTITY_SERIES_FEATURES.md`。

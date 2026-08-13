@@ -6,7 +6,7 @@ use prob_scout::historical_identity::HistoricalIdentityAudit;
 use serde::Serialize;
 
 #[derive(Debug, Parser)]
-#[command(about = "Write validated HIST-010 pure Series Results as stable CSV")]
+#[command(about = "Write validated historical pure Series Results as stable CSV")]
 struct Args {
     #[arg(long)]
     identity_audit: PathBuf,

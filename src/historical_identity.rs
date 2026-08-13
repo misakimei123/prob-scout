@@ -131,7 +131,7 @@ pub struct HistoricalIdentitySummary {
     pub series_result_count: u32,
 }
 
-/// HIST-010 单一可重放输出：显式证据、时间化 registry、coverage 和纯 Series Result。
+/// 历史身份单一可重放输出：显式证据、时间化 registry、coverage 和纯 Series Result。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HistoricalIdentityAudit {
@@ -153,10 +153,6 @@ pub enum HistoricalIdentityError {
         dataset: &'static str,
         field: &'static str,
     },
-    InvalidTournamentYear {
-        overview_page: String,
-        year: Option<String>,
-    },
     IdentityCoverage(IdentityCoverageError),
     SeriesResult(SeriesResultError),
     CountOverflow(&'static str),
@@ -175,13 +171,6 @@ impl fmt::Display for HistoricalIdentityError {
             Self::InvalidRawField { dataset, field } => write!(
                 formatter,
                 "historical identity raw field is empty: dataset={dataset}, field={field}"
-            ),
-            Self::InvalidTournamentYear {
-                overview_page,
-                year,
-            } => write!(
-                formatter,
-                "target tournament has unexpected year: overview_page={overview_page}, year={year:?}"
             ),
             Self::IdentityCoverage(error) => write!(formatter, "identity coverage failed: {error}"),
             Self::SeriesResult(error) => write!(formatter, "series result build failed: {error}"),
@@ -269,7 +258,7 @@ pub fn build_historical_identity_audit(
                             *observed_at,
                             Some(*observed_at + Duration::seconds(1)),
                             format!(
-                                "HIST-010:TeamRedirects:{source_key}->{canonical_page}|{series_id}|{result_evidence_id}"
+                                "HistoricalIdentity:TeamRedirects:{source_key}->{canonical_page}|{series_id}|{result_evidence_id}"
                             ),
                         ));
                     }
@@ -303,7 +292,7 @@ pub fn build_historical_identity_audit(
                 *observed_at,
                 Some(*observed_at + Duration::seconds(1)),
                 format!(
-                    "HIST-010:TeamRedirects:{source_key}->{canonical_page}|{series_id}|{result_evidence_id}"
+                    "HistoricalIdentity:TeamRedirects:{source_key}->{canonical_page}|{series_id}|{result_evidence_id}"
                 ),
             ));
         }
@@ -354,7 +343,7 @@ pub fn build_historical_identity_audit(
                                 *observed_at,
                                 Some(*observed_at + Duration::seconds(1)),
                                 format!(
-                                    "HIST-010:Tournaments:{source_key}->{league_brand}|{series_id}|{result_evidence_id}"
+                                    "HistoricalIdentity:Tournaments:{source_key}->{league_brand}|{series_id}|{result_evidence_id}"
                                 ),
                             ),
                         );
@@ -390,7 +379,7 @@ pub fn build_historical_identity_audit(
                     *observed_at,
                     Some(*observed_at + Duration::seconds(1)),
                     format!(
-                        "HIST-010:Tournaments:{source_key}->{league_brand}|{series_id}|{result_evidence_id}"
+                        "HistoricalIdentity:Tournaments:{source_key}->{league_brand}|{series_id}|{result_evidence_id}"
                     ),
                 ));
         }
@@ -576,12 +565,8 @@ fn collect_tournament_relations(
                 });
             }
         }
-        if row.year.as_deref() != Some("2025") {
-            return Err(HistoricalIdentityError::InvalidTournamentYear {
-                overview_page: row.overview_page,
-                year: row.year,
-            });
-        }
+        // Year 仅是 tournament 的描述字段，不参与身份解析。恢复语料跨越 2025/2026，
+        // 权威关系仍是 candidate 观测时点上的 exact OverviewPage -> League/Region。
         output
             .entry(row.overview_page)
             .or_default()
@@ -640,7 +625,7 @@ fn build_resolved_series_results(
             team_names: candidate.team_source_keys.clone(),
             scores: candidate.scores,
             winner_team_id: team_ids[winner_index].clone(),
-            mapping_evidence_id: format!("HIST-010:{}", candidate.series_id),
+            mapping_evidence_id: format!("HistoricalIdentity:{}", candidate.series_id),
             result_evidence_id: candidate.result_evidence_id.clone(),
         });
     }
@@ -818,16 +803,30 @@ mod tests {
     }
 
     #[test]
-    fn non_2025_target_tournament_fails_closed() {
+    fn tournament_year_is_descriptive_when_exact_relation_exists() {
         let mut build_input = input(vec![
             redirect("Old Alpha", "Alpha Esports"),
             redirect("Beta", "Beta"),
         ]);
         build_input.tournament_rows[0].year = Some("2026".to_owned());
-        assert!(matches!(
-            build_historical_identity_audit(build_input),
-            Err(HistoricalIdentityError::InvalidTournamentYear { .. })
-        ));
+        let audit = build_historical_identity_audit(build_input)
+            .expect("descriptive Year must not override the exact source relation");
+        assert_eq!(audit.summary.fully_resolved_series, 1);
+        assert_eq!(audit.series_results.len(), 1);
+    }
+
+    #[test]
+    fn tournament_year_does_not_replace_missing_exact_overview_page_relation() {
+        let mut build_input = input(vec![
+            redirect("Old Alpha", "Alpha Esports"),
+            redirect("Beta", "Beta"),
+        ]);
+        build_input.tournament_rows[0].overview_page = "Other/2025 Season/Spring".to_owned();
+        let audit = build_historical_identity_audit(build_input)
+            .expect("missing exact relation must remain an auditable result");
+        assert_eq!(audit.summary.unresolved_competition_key_count, 1);
+        assert_eq!(audit.summary.fully_resolved_series, 0);
+        assert!(audit.series_results.is_empty());
     }
 
     #[test]

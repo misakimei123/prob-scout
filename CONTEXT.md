@@ -57,8 +57,8 @@ _Avoid_: Fuzzy matching, current-name backfill
 _Avoid_: Auto-approved alias, unresolved identity registry
 
 **Historical Identity Evidence**:
-由 Leaguepedia exact TeamRedirects/Tournaments relation 与具体 MatchSchedule 赛事时点共同组成的时间化身份凭证；只授权证据事件的有效区间，缺失或一对多 relation 继续 fail closed。
-_Avoid_: Source-key fallback, slug identity, timeless current redirect
+由 Leaguepedia exact TeamRedirects/Tournaments relation 与具体 MatchSchedule 赛事时点共同组成的时间化身份凭证；只授权证据事件的有效区间，缺失或一对多 relation 继续 fail closed。`Tournaments.Year` 只是描述字段，不是 identity key；跨年度构建仍必须使用赛事自身的 `OverviewPage -> League/Region` exact relation。
+_Avoid_: Source-key fallback, slug identity, timeless current redirect, year-as-identity
 
 **Candidate Rejection**:
 历史候选因 BO 类型、比分/Winner、Patch、逐局数量/时间或必填字段不满足合同而被排除的可审计记录；拒绝原因必须保留，不能在采集查询中静默过滤。

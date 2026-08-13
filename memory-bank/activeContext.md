@@ -30,10 +30,11 @@
 - `MODEL-007` 已在 release 前固定回退 sigmoid 并选择 raw statistical，冻结全部 artifact/config/evaluation hashes 后只成功执行一次 356 场 Final Test。raw/Elo Brier 为 `0.2500447064/0.2363180786`，Log Loss 为 `0.6953063265/0.6648857090`；raw 退化 `+0.0137266278/+0.0304206175`，超过预注册保护线，Gate 1 为 `failed_stop_modeling`。artifact SHA-256 为 `8380bb33219277e8404dd9b07c28ecda00aa19e27d1d09cad96f39ffd406af37`。
 - `M3R-001` 已使用完全相同的 325 场冻结候选重放 959 个公开 evaluation IDs，仍在 3/3 folds 略优于 Elo；因此 expanding/frozen 训练协议差异存在但不足以解释 Final sign reversal。Final BO5 share 从 `7.51%` 升至 `47.19%`，共同 `Region×BO` cells 的 Brier composition/residual 为 `+0.0077955435/+0.0084671032`，两者均有实质贡献；18 场 `China|BO5` 无公开参照。旧 Final 已永久退役，归因 artifact SHA-256 为 `ba126c4ea192f4078f8795646796fa37cf5a2503a9f0cd7a89c59cd7e543271c`。
 - `M3R-002` 已建立 `[2025-07-01,2026-07-01)` 非重叠 source candidate corpus：16,598 个 MatchId 得到 3,759 candidates、12,839 rejections，覆盖 349 个 UTC 日期、25 Patch、9 个 Region source value、BO3 2,819 / BO5 940。旧 1,778 条结束于 `2025-06-30T18:30:00Z`，新 candidate 起于 `2025-07-01T16:00:00Z`，member/temporal overlap 均为 0；103 个 raw page、旧 corpus upstream 和 output hash 已全量复核。dataset SHA-256 为 `f5c4210a04417392c92801a8d5f9e7d6c2b7c9f2871e63bd6e89d77f3d32860b`。
+- `M3R-003` 已将 identity builder 泛化为跨年度 exact relation 审核，但没有放宽 identity：`Tournaments.Year` 仅为描述字段，Competition 仍由候选赛事时点的 `OverviewPage -> League/Region` relation 证明。3,759 candidates 得到 3,155 fully resolved、604 blocked；202/694 team keys Missing、267/267 competition keys Resolved、Ambiguous 为 0。3,155 条 Series Result 与 `T-15m` Feature Snapshot 成员完全一致，与旧 M2 corpus overlap 为 0，source-time/snapshot-lead/赛后字段 leakage 均为 0；Identity/Series/Feature SHA-256 分别为 `8f3e7aeadc9cf071adbe21fd74becd52126cd720fbe017b45b4755964d7bb331`、`dff9c9ee61cabf0c3a5a0a6aa9518fcd02cf6d28aa02a1cae6d6cd6a7817e6ac`、`8433cc10ee73cab042049d0afe0f81cfc0d96504348346178fb6c4baaa3c7f2b`。
 
 ## 下一任务
 
-下一任务是 `M3R-003`，只对 M3R-002 的 3,759 candidates 重新构建 exact、time-bounded Team/Competition identity evidence、Series Result 与 `T-15m` Feature Snapshot。`Missing`/`Ambiguous` 必须 fail closed，source-time leakage 必须为 0；不得提前建立新 split、训练模型或开始 `BACK-001`，也不得复用已退役的 356 场 Final Test。
+下一任务是 `M3R-004`，只为 M3R-003 的 3,155 条新 eligible members 建立连续、唯一、无重叠的 Development splits 与从未公开成员的 sealed Final Test。必须显式排除已退役的旧 356 场 Final Test，固定 membership commitment 和独立 release 合同；不得提前训练恢复模型或开始 `BACK-001`。
 
 关键验收边界：
 
@@ -64,4 +65,4 @@
 
 ## 首次检查
 
-进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/GATE1_FAILURE_ATTRIBUTION.md`、`docs/GATE1_DECISION.md`、`docs/TASK_BREAKDOWN.md` 与 `CONTEXT.md`。下一任务只执行 `M3R-002` 新 candidate corpus，不训练模型、不重跑 MODEL-007、不开始 `BACK-001`。
+进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/RECOVERY_IDENTITY_SERIES_FEATURES.md`、`docs/GATE1_FAILURE_ATTRIBUTION.md`、`docs/TASK_BREAKDOWN.md` 与 `CONTEXT.md`。下一任务只执行 `M3R-004` 新 Development / sealed Final Test，不训练模型、不重跑 MODEL-007、不开始 `BACK-001`。
