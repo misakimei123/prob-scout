@@ -46,12 +46,14 @@ source = { virtual = "." }
 dependencies = [
     { name = "numpy" },
     { name = "scikit-learn" },
+    { name = "scipy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = "==2.5.2" },
     { name = "scikit-learn", specifier = "==1.9.0" },
+    { name = "scipy", specifier = "==1.18.0" },
 ]
 
 [[package]]

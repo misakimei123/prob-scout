@@ -107,3 +107,15 @@ M3R-002 固定 `[2025-07-01,2026-07-01)` 为新 source candidate 时间窗，并
 ## 2026-08-13 — Tournaments Year 不参与 Historical Identity 判定
 
 M3R-003 移除 HIST-010 identity builder 中仅适用于 2025H1 的 `Tournaments.Year == 2025` 硬编码。`Year` 只保留为来源描述字段；跨年度 Competition identity 仍必须由每条 candidate 的 `OverviewPage` 在 exact `Tournaments.OverviewPage -> League/Region` relation 中唯一解析，并与该 candidate 的 Scheduled Start 组合成事件时点 evidence。原因是年份既不能唯一标识赛事，也不能替代具体赛事页面关系。影响是同一 builder 可覆盖 2025/2026 candidates，但 Missing/Ambiguous 仍 fail closed，禁止 fuzzy、slug、source-key fallback 或按年份自动确认。
+
+## 2026-08-14 — 恢复 split 必须排除旧 Final 的整个时间与成员空间
+
+M3R-004 在普通 Temporal Split Manifest 上增加独立 recovery context：重新从旧 Feature Snapshot 计算旧 Final commitment，并要求旧 Final 与整个新 corpus 的 `member_overlap_count=0`、`temporal_overlap_count=0`，而不是只检查新 Final。新边界在不读取 feature value 或 label 的情况下按完整 UTC 月固定为 6/2/2/2 个月，形成 1,281/430/743/701。原因是只把旧成员从新 Final 移走仍会允许旧 holdout 进入训练和模型选择，破坏恢复 Gate 的独立性。影响是新 Final 继续只发布 count/window/commitment，aggregate coverage 可公开但不得驱动 M3R-005 选择；旧 Final 永久只作 diagnostic evidence。
+
+## 2026-08-14 — Gate 1 恢复采用两速 Feature Lab 与 Elo-offset P0
+
+本决策 supersede 旧开发计划中“10 维累计 form Logistic Regression 作为第一版主模型”的推荐语义，但不删除其历史结果。P0 固定以赛前 game Elo logit 为 offset，只学习对手质量校正、时间衰减 form、赛程密度和 availability 等少量 residual，再用确定性 BO3/BO5 DP 得到 series probability；unsupported cell 回退 Elo。现有 ScoreboardGames 若不能提供逐局 winner，则 series 完成后只能按最终 game counts batch update，不得伪造局序。Rust 保留 identity、cutoff、membership、seal 与 lineage，Python Feature Lab 负责实验列及 `source_max_at/input_count/status` 审计，只有晋升 FeatureSet 才支付完整冻结成本。原因是旧模型平行重学队伍强弱且 BO5 dummy 无法表达生成机制，而每列跨 Rust/DB/PowerShell/Python 同步会显著降低小样本研究迭代速度。影响是 P0 不引入 tree、roster/Patch micro-stat 或完整 Bayesian 层级模型，新 Final 在所有 P0 决策冻结前不得 release。
+
+## 2026-08-14 — P0 未通过公开时间稳定性并停止在 Final release 前
+
+M3R-005 的 1,173 条公开 Walk-forward evaluation 在自然构成汇总上相对生成式 Elo 略优，但 Fold 1/2 的 Brier 与 Log Loss 均劣化，Fold 4 只有 Brier 微弱改善；固定四窗共同 `Region×BO` 构成后 3/4 folds 双指标劣化。该证据反驳了“总体均值改善即足够晋级”的解释，因此状态固定为 `failed_public_stability_stop_before_final`。现有 ScoreboardGames 没有逐局 winner，P0 只使用可审计的 series-atomic game-count batch update，不伪造局序。影响是新 701 条 Final 继续 sealed，M3R-006 不获授权；不得通过搜索当前参数或删反例继续试验，下一步只能先作新增原子证据的 P1 Go/Kill 决策，默认保留生成式 Elo并停止统计恢复。

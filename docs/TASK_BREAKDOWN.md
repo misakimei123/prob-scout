@@ -384,23 +384,32 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 - 验收：继续使用 exact、time-bounded identity evidence；Missing/Ambiguous fail closed，source-time leakage 为 0。
 - 证据：2026-08-13 将 HIST-010 identity builder 泛化为跨年度 exact relation 审核，明确 `Tournaments.Year` 仅为描述字段，Canonical Competition 仍只由候选赛事时点的 `OverviewPage -> League/Region` exact relation 建立，并新增 `docs/RECOVERY_IDENTITY_SERIES_FEATURES.md`。M3R-002 的 3,759 candidates 中，694 个 team source keys 得到 492 Resolved / 202 Missing / 0 Ambiguous，267 个 competition keys 全部 Resolved；最终 3,155 fully resolved、604 fail-closed blocked。重建得到 3,155 条 Series Result 和成员完全一致的 3,155 条 `T-15m` Feature Snapshot，与旧 M2 1,778 场 member overlap 为 0，source-time/snapshot-lead/目标赛后字段 leakage 均为 0。Identity/Series/Feature SHA-256 分别为 `8f3e7aeadc9cf071adbe21fd74becd52126cd720fbe017b45b4755964d7bb331`、`dff9c9ee61cabf0c3a5a0a6aa9518fcd02cf6d28aa02a1cae6d6cd6a7817e6ac`、`8433cc10ee73cab042049d0afe0f81cfc0d96504348346178fb6c4baaa3c7f2b`；Feature cache replay hash 相同，100 个 raw inputs、全部 upstream/output hashes 与 manifests 已复核。全仓 88 个 Rust tests、`cargo fmt/check --locked`、PowerShell parser、三层 manifest 校验与 `git diff --check` 全部通过。
 
-### [ ] M3R-004 建立新 Development 与 sealed Final Test
+### [x] M3R-004 建立新 Development 与 sealed Final Test
 
 - 依赖：M3R-003
 - 输出：新时间窗的 development splits 和从未公开成员的全新 Final Test seal。
-- 验收：旧 Final Test 不得进入新 Final；新 development/final 连续、唯一、无重叠，commitment 和 release 合同独立版本化。
+- 验收：旧 Final Test 不得进入新 corpus 或新 Final；新 development/final 连续、唯一、无重叠，commitment 和 release 合同独立版本化；只使用 ID 与 Scheduled Start 选边界，不读取 feature value 或 label；发布各 split 的时间、Region、BO、Patch 和 missingness 描述性覆盖，但 final IDs 保持 sealed。
+- 证据：2026-08-14 扩展 `src/temporal_split.rs`、`src/bin/build_temporal_split_manifest.rs` 与 `research/build_temporal_split_dataset.ps1`，新增恢复 split context，对旧 split commitment 重算并对新 corpus 执行成员/时间双重零重叠校验；新增 aggregate-only `research/m3r004_split_coverage.py`、定向测试与 `docs/RECOVERY_TEMPORAL_SPLIT.md`。按仅由 UTC 日历决定的 `[2025-07-01,2026-01-01)` / `[2026-01-01,2026-03-01)` / `[2026-03-01,2026-05-01)` / `[2026-05-01,2026-07-01)` 划为 1,281 / 430 / 743 / 701；旧 356 场 Final 的 member/temporal overlap 均为 0。新 Final 只公开 701 条 count 与 commitment `d8b3f5e2cca5eb707173a1ea4a8881c0b9e764173e6d24a373899639fab3a130`，split SHA-256 为 `ed7564bf68a4e16400c1d712242861a03a32893ecad5a91d814c86c1dcba64b1`。Rust temporal split 8 项测试、Python seal 测试、3,155 行 aggregate replay、Dataset Manifest validator、PowerShell parser、固定版本 `ruff` 与 `git diff --check` 通过。
 
-### [ ] M3R-005 开发并 Walk-forward 验证恢复模型
+### [x] M3R-005 开发并 Walk-forward 验证恢复模型
 
 - 依赖：M3R-004
-- 输出：只在新 Development 上开发的候选模型、Elo baseline 和完整 Walk-forward。
-- 验收：模型假设、特征和 Gate 阈值在新 Final release 前冻结；完整报告所有窗口、赛区、BO 和反例。
+- 输出：只在新 Development 上开发的 P0 Feature Lab、可审计的 game-count Elo、固定 Elo logit offset residual model、BO3/BO5 确定性 DP 概率与完整 Walk-forward；若缺少逐局 winner，必须 batch update 而不得伪造顺序。
+- 验收：同一 series 的小局不得跨 split；残差特征只消费 cutoff 前已完成小局及其 pregame Elo，记录 `source_max_at/input_count/status`；无支持条件回退 Elo；模型训练协议与最终冻结协议一致；完整报告自然构成、固定 `Region×BO` composition、所有时间窗口、赛区、BO、unsupported cell 与反例。P0 不引入 tree model、目标实际首发/选边/draft、全量 roster/Patch micro-stat 或完整 Bayesian 层级模型；这些 P1 假设须等 P0 结果后另行授权。
+- 证据：2026-08-14 新增 `research/model008_recovery_model.py`、固定 config、轻量 builder、3 个模型测试与 `docs/RECOVERY_MODEL_P0.md`。因 ScoreboardGames 无逐局 winner，明确采用 `series_atomic_game_count_batch` 而不伪造局序；2,454 个 model rows 与 39,264 个 `source_max_at/input_count/status` audit rows 的 source-time violation 为 0。四个自然月 Walk-forward 共 1,173 evaluation，Pooled Brier/Log Loss 相对生成式 Elo为 `-0.00115008/-0.00180314`，但 Fold 1/2 双指标劣化、Fold 4 Log Loss 劣化；固定共同 `Region×BO` composition 后 3/4 folds 双指标劣化，273 行因 support 不足回退 Elo。状态为 `failed_public_stability_stop_before_final`，701 条新 Final 未 release，artifact SHA-256 为 `f4e4892ca5daffd5edb1bfc2b785cf74cb8bb8fcc26860c2ab058c8d441a2144`，相同输入双构建一致。
+
+### [ ] M3R-005A 决定是否授权新增证据的 P1
+
+- 依赖：M3R-005
+- 输出：基于新增原子证据可得性的 P1 Go / Kill 决策，或正式停止恢复模型路线并保留生成式 Elo。
+- 验收：不得 release 新 Final；不得仅因看过 P0 四窗结果而搜索 half-life、Elo K、L2、support threshold、删分段或同源特征组合。Go 必须先证明新增 Game Result / roster availability 等 evidence 在 `T-15m` 可得、秒级来源可审计且预期修复具体反例。
 
 ### [ ] M3R-006 作出恢复 Gate 1 决策
 
-- 依赖：M3R-005
+- 依赖：M3R-005A 明确授权且新的公开 Walk-forward 候选满足稳定性门槛
 - 输出：使用全新 sealed Final Test 的一次性继续或停止结论。
 - 验收：旧 Final 只作为 retired diagnostic evidence；新 Final 主评估只成功运行一次，失败结果永久保留。
+- 当前状态：Blocked；M3R-005 P0 未通过公开时间稳定性检查，禁止 release 新 Final。
 
 ## 8. M4：历史双策略回测
 
@@ -667,4 +676,4 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 35. `M3R-002`：已建立 3,759 条新 source-identity candidates；覆盖 349 个日期、25 Patch、9 Region source value 和 BO3/BO5，与旧 1,778 条 member/temporal overlap 均为 0。
 36. `M3R-003`：已为新 candidates 构建跨年度 exact、time-bounded identity evidence；3,155 条 fully resolved Series Result 与 `T-15m` Feature Snapshot 成员一致且 leakage 为 0，604 条因缺失 team relation 继续 fail closed。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-007`，但 Gate 1 最终裁决为 `failed_stop_modeling`。恢复阶段已完成 `M3R-001`–`M3R-003`，下一任务是 `M3R-004`：只为新 3,155 条 eligible members 建立连续、唯一、无重叠的 Development 与从未公开成员的 sealed Final Test。M4 的 `BACK-001` 及后续策略、PnL、执行任务继续阻塞。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-007`，但 Gate 1 最终裁决为 `failed_stop_modeling`。恢复阶段已完成 `M3R-001`–`M3R-005`；P0 未通过公开时间稳定性，下一任务为 `M3R-005A` 新增原子证据的 P1 Go/Kill 决策，默认停止统计恢复并保留生成式 Elo。新 Final、M3R-006、M4 的 `BACK-001` 及后续策略、PnL、执行任务继续阻塞。

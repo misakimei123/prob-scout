@@ -8,7 +8,11 @@ param(
     [string]$ValidationStartUtc = "",
     [string]$CalibrationStartUtc = "",
     [string]$FinalTestStartUtc = "",
-    [string]$FinalTestEndUtc = ""
+    [string]$FinalTestEndUtc = "",
+    [string]$RetiredFeatureSnapshotPath = "",
+    [string]$RetiredFeatureSnapshotManifestPath = "",
+    [string]$RetiredSplitPath = "",
+    [string]$RetiredSplitDatasetManifestPath = ""
 )
 
 Set-StrictMode -Version Latest
@@ -110,6 +114,98 @@ foreach ($snapshot in $snapshots) {
         })
 }
 
+# M3R 恢复模式必须同时提供旧特征集和旧 split 的双层 manifest，不能只凭调用方声称旧 Final 已排除。
+$retiredValues = @(
+    $RetiredFeatureSnapshotPath,
+    $RetiredFeatureSnapshotManifestPath,
+    $RetiredSplitPath,
+    $RetiredSplitDatasetManifestPath
+)
+$providedRetiredCount = @($retiredValues | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+if ($providedRetiredCount -notin @(0, 4)) {
+    throw "恢复划分必须同时提供 RetiredFeatureSnapshotPath、RetiredFeatureSnapshotManifestPath、RetiredSplitPath 和 RetiredSplitDatasetManifestPath。"
+}
+$retiredReference = $null
+$retiredUpstreams = @()
+if ($providedRetiredCount -eq 4) {
+    $RetiredFeatureSnapshotPath = [System.IO.Path]::GetFullPath($RetiredFeatureSnapshotPath)
+    $RetiredFeatureSnapshotManifestPath = [System.IO.Path]::GetFullPath($RetiredFeatureSnapshotManifestPath)
+    $RetiredSplitPath = [System.IO.Path]::GetFullPath($RetiredSplitPath)
+    $RetiredSplitDatasetManifestPath = [System.IO.Path]::GetFullPath($RetiredSplitDatasetManifestPath)
+    foreach ($path in @(
+            $RetiredFeatureSnapshotPath,
+            $RetiredFeatureSnapshotManifestPath,
+            $RetiredSplitPath,
+            $RetiredSplitDatasetManifestPath
+        )) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "缺少 retired Final lineage 输入：$path"
+        }
+    }
+
+    & cargo run --quiet --locked --bin validate_dataset_manifest -- $RetiredFeatureSnapshotManifestPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "retired feature Dataset Manifest Rust 校验失败。"
+    }
+    & cargo run --quiet --locked --bin validate_dataset_manifest -- $RetiredSplitDatasetManifestPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "retired split Dataset Manifest Rust 校验失败。"
+    }
+
+    $retiredFeatureManifest = Get-Content -Raw -LiteralPath $RetiredFeatureSnapshotManifestPath | ConvertFrom-Json
+    $retiredFeatureHash = Get-Sha256 $RetiredFeatureSnapshotPath
+    $retiredFeatureRelativePath = Get-RepositoryRelativePath $repositoryRoot $RetiredFeatureSnapshotPath
+    if ([string]$retiredFeatureManifest.output.relative_path -ne $retiredFeatureRelativePath -or
+        [string]$retiredFeatureManifest.output.sha256 -ne $retiredFeatureHash) {
+        throw "retired feature 路径或 hash 与 Dataset Manifest 不一致。"
+    }
+
+    $retiredSplitDatasetManifest = Get-Content -Raw -LiteralPath $RetiredSplitDatasetManifestPath | ConvertFrom-Json
+    $retiredSplitHash = Get-Sha256 $RetiredSplitPath
+    $retiredSplitRelativePath = Get-RepositoryRelativePath $repositoryRoot $RetiredSplitPath
+    if ([string]$retiredSplitDatasetManifest.output.relative_path -ne $retiredSplitRelativePath -or
+        [string]$retiredSplitDatasetManifest.output.sha256 -ne $retiredSplitHash) {
+        throw "retired split 路径或 hash 与 Dataset Manifest 不一致。"
+    }
+
+    $retiredSplit = Get-Content -Raw -LiteralPath $RetiredSplitPath | ConvertFrom-Json
+    if ([string]$retiredSplit.source_dataset_sha256 -ne $retiredFeatureHash) {
+        throw "retired split 未绑定所提供的 retired feature dataset。"
+    }
+    $retiredSnapshots = @(Get-Content -Raw -LiteralPath $RetiredFeatureSnapshotPath | ConvertFrom-Json)
+    $retiredCandidates = [System.Collections.Generic.List[object]]::new()
+    foreach ($snapshot in $retiredSnapshots) {
+        if ([string]::IsNullOrWhiteSpace([string]$snapshot.series_id) -or
+            [string]::IsNullOrWhiteSpace([string]$snapshot.scheduled_start_utc)) {
+            throw "retired feature snapshot 缺少 series_id 或 scheduled_start_utc。"
+        }
+        $retiredScheduledStart = Parse-Utc ([string]$snapshot.scheduled_start_utc) "retired.scheduled_start_utc"
+        $retiredCandidates.Add([pscustomobject][ordered]@{
+                series_id = [string]$snapshot.series_id
+                scheduled_start_utc = Format-Utc $retiredScheduledStart
+            })
+    }
+    $retiredReference = [ordered]@{
+        split_manifest_sha256 = $retiredSplitHash
+        split_manifest = $retiredSplit
+        candidates = @($retiredCandidates)
+    }
+    $retiredUpstreams = @(
+        [ordered]@{
+            manifest_relative_path = Get-RepositoryRelativePath $repositoryRoot $RetiredFeatureSnapshotManifestPath
+            manifest_sha256 = Get-Sha256 $RetiredFeatureSnapshotManifestPath
+            output_relative_path = $retiredFeatureRelativePath
+            output_sha256 = $retiredFeatureHash
+        },
+        [ordered]@{
+            manifest_relative_path = Get-RepositoryRelativePath $repositoryRoot $RetiredSplitDatasetManifestPath
+            manifest_sha256 = Get-Sha256 $RetiredSplitDatasetManifestPath
+            output_relative_path = $retiredSplitRelativePath
+            output_sha256 = $retiredSplitHash
+        }
+    )
+}
+
 $boundaryValues = @($TrainStartUtc, $ValidationStartUtc, $CalibrationStartUtc, $FinalTestStartUtc, $FinalTestEndUtc)
 $providedBoundaryCount = @($boundaryValues | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
 if ($providedBoundaryCount -notin @(0, 5)) {
@@ -168,6 +264,9 @@ $buildInput = [ordered]@{
     }
     candidates = @($candidates)
 }
+if ($null -ne $retiredReference) {
+    $buildInput["retired_final_reference"] = $retiredReference
+}
 $temporaryInput = Join-Path ([System.IO.Path]::GetTempPath()) ("prob-scout-hist005-input-{0}.json" -f [guid]::NewGuid().ToString("N"))
 try {
     $buildInput | ConvertTo-Json -Depth 8 | Set-Content -Encoding utf8 -LiteralPath $temporaryInput
@@ -195,6 +294,13 @@ if ($developmentIds.Count + [int]$splitManifest.final_test.series_count -ne $sna
 if ($splitManifest.final_test.PSObject.Properties.Name -contains "series_ids") {
     throw "调参 manifest 不得暴露 final test series IDs。"
 }
+if ($null -ne $retiredReference) {
+    if ($null -eq $splitManifest.recovery -or
+        [int]$splitManifest.recovery.member_overlap_count -ne 0 -or
+        [int]$splitManifest.recovery.temporal_overlap_count -ne 0) {
+        throw "恢复划分未提供可验证的 retired Final 零重叠证明。"
+    }
+}
 
 $datasetHash = Get-Sha256 $datasetPath
 $statusLines = @(& git -C $repositoryRoot status --porcelain=v1 --untracked-files=all)
@@ -221,6 +327,29 @@ if ($dirty) {
 }
 
 $orderedEventTimes = @($eventTimes | Sort-Object)
+$generatorArguments = @(
+    "-Version", $Version,
+    "-TrainStartUtc", (Format-Utc $trainStart),
+    "-ValidationStartUtc", (Format-Utc $validationStart),
+    "-CalibrationStartUtc", (Format-Utc $calibrationStart),
+    "-FinalTestStartUtc", (Format-Utc $finalTestStart),
+    "-FinalTestEndUtc", (Format-Utc $finalTestEnd)
+)
+if ($null -ne $retiredReference) {
+    $generatorArguments += @(
+        "-RetiredFeatureSnapshotPath", (Get-RepositoryRelativePath $repositoryRoot $RetiredFeatureSnapshotPath),
+        "-RetiredFeatureSnapshotManifestPath", (Get-RepositoryRelativePath $repositoryRoot $RetiredFeatureSnapshotManifestPath),
+        "-RetiredSplitPath", (Get-RepositoryRelativePath $repositoryRoot $RetiredSplitPath),
+        "-RetiredSplitDatasetManifestPath", (Get-RepositoryRelativePath $repositoryRoot $RetiredSplitDatasetManifestPath)
+    )
+}
+$upstreamDatasets = @([ordered]@{
+        manifest_relative_path = Get-RepositoryRelativePath $repositoryRoot $FeatureSnapshotManifestPath
+        manifest_sha256 = Get-Sha256 $FeatureSnapshotManifestPath
+        output_relative_path = $featureRelativePath
+        output_sha256 = $featureHash
+    }) + @($retiredUpstreams)
+
 $manifest = [ordered]@{
     manifest_version = 1
     dataset = [ordered]@{ name = "lol-temporal-splits"; version = $Version }
@@ -228,21 +357,9 @@ $manifest = [ordered]@{
     code = [ordered]@{ git_commit = $gitCommit; dirty = $dirty; diff_sha256 = $diffHash }
     generator = [ordered]@{
         entrypoint = "research/build_temporal_split_dataset.ps1"
-        arguments = @(
-            "-Version", $Version,
-            "-TrainStartUtc", (Format-Utc $trainStart),
-            "-ValidationStartUtc", (Format-Utc $validationStart),
-            "-CalibrationStartUtc", (Format-Utc $calibrationStart),
-            "-FinalTestStartUtc", (Format-Utc $finalTestStart),
-            "-FinalTestEndUtc", (Format-Utc $finalTestEnd)
-        )
+        arguments = $generatorArguments
     }
-    upstream_datasets = @([ordered]@{
-            manifest_relative_path = Get-RepositoryRelativePath $repositoryRoot $FeatureSnapshotManifestPath
-            manifest_sha256 = Get-Sha256 $FeatureSnapshotManifestPath
-            output_relative_path = $featureRelativePath
-            output_sha256 = $featureHash
-        })
+    upstream_datasets = $upstreamDatasets
     raw_inputs = @()
     output = [ordered]@{
         relative_path = Get-RepositoryRelativePath $repositoryRoot $datasetPath

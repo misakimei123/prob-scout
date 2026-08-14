@@ -6,6 +6,8 @@ use sha2::{Digest, Sha256};
 
 pub const TEMPORAL_SPLIT_MANIFEST_VERSION: u16 = 1;
 pub const FINAL_TEST_ACCESS_POLICY: &str = "sealed_until_model_freeze";
+pub const RECOVERY_SPLIT_CONTRACT_VERSION: u16 = 1;
+pub const RECOVERY_INDEPENDENCE_POLICY: &str = "retired_final_excluded_from_entire_recovery_corpus";
 
 /// HIST-005 只按 Event 的 Scheduled Start 分配；输入不需要读取任何特征值或 label。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +53,21 @@ pub struct SealedFinalTestSplit {
     pub access_policy: String,
 }
 
+/// M3R 恢复划分额外固定旧 Final 的不可复用证据；不序列化旧成员 ID。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecoverySplitContext {
+    pub contract_version: u16,
+    pub reference_split_manifest_sha256: String,
+    pub retired_source_dataset_sha256: String,
+    pub retired_final_window: TimeWindow,
+    pub retired_final_series_count: u32,
+    pub retired_final_membership_sha256: String,
+    pub member_overlap_count: u32,
+    pub temporal_overlap_count: u32,
+    pub independence_policy: String,
+}
+
 /// 调参阶段唯一允许消费的划分合同；final_test 的类型中不存在 `series_ids` 字段。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -61,6 +78,8 @@ pub struct TemporalSplitManifest {
     pub validation: DevelopmentSplit,
     pub calibration: DevelopmentSplit,
     pub final_test: SealedFinalTestSplit,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery: Option<RecoverySplitContext>,
 }
 
 /// release 前必须冻结三个独立输入，避免看过 final test 后静默覆盖模型或评估代码。
@@ -97,6 +116,11 @@ pub enum TemporalSplitError {
     SeriesCountOverflow,
     InvalidAccessPolicy,
     FinalTestCommitmentMismatch,
+    UnsupportedRecoveryVersion(u16),
+    InvalidRecoveryPolicy,
+    RecoverySourceNotIndependent,
+    RecoveryMemberOverlap(u32),
+    RecoveryTemporalOverlap(u32),
 }
 
 impl fmt::Display for TemporalSplitError {
@@ -135,6 +159,25 @@ impl fmt::Display for TemporalSplitError {
             Self::FinalTestCommitmentMismatch => {
                 formatter.write_str("final test membership does not match the sealed commitment")
             }
+            Self::UnsupportedRecoveryVersion(version) => {
+                write!(
+                    formatter,
+                    "unsupported recovery split contract version: {version}"
+                )
+            }
+            Self::InvalidRecoveryPolicy => {
+                formatter.write_str("recovery split independence policy is invalid")
+            }
+            Self::RecoverySourceNotIndependent => formatter
+                .write_str("recovery source dataset must differ from the retired source dataset"),
+            Self::RecoveryMemberOverlap(count) => write!(
+                formatter,
+                "retired final members overlap the recovery corpus: {count}"
+            ),
+            Self::RecoveryTemporalOverlap(count) => write!(
+                formatter,
+                "recovery candidates overlap the retired final time range: {count}"
+            ),
         }
     }
 }
@@ -231,6 +274,47 @@ impl TemporalSplitManifest {
         )?;
         if self.final_test.access_policy != FINAL_TEST_ACCESS_POLICY {
             return Err(TemporalSplitError::InvalidAccessPolicy);
+        }
+        if let Some(recovery) = &self.recovery {
+            if recovery.contract_version != RECOVERY_SPLIT_CONTRACT_VERSION {
+                return Err(TemporalSplitError::UnsupportedRecoveryVersion(
+                    recovery.contract_version,
+                ));
+            }
+            require_sha256(
+                "recovery.reference_split_manifest_sha256",
+                &recovery.reference_split_manifest_sha256,
+            )?;
+            require_sha256(
+                "recovery.retired_source_dataset_sha256",
+                &recovery.retired_source_dataset_sha256,
+            )?;
+            require_sha256(
+                "recovery.retired_final_membership_sha256",
+                &recovery.retired_final_membership_sha256,
+            )?;
+            recovery.retired_final_window.validate("retired_final")?;
+            if recovery.retired_final_series_count == 0 {
+                return Err(TemporalSplitError::EmptySplit("retired_final"));
+            }
+            if recovery.independence_policy != RECOVERY_INDEPENDENCE_POLICY {
+                return Err(TemporalSplitError::InvalidRecoveryPolicy);
+            }
+            if recovery.retired_source_dataset_sha256 == self.source_dataset_sha256 {
+                return Err(TemporalSplitError::RecoverySourceNotIndependent);
+            }
+            if recovery.member_overlap_count != 0 {
+                return Err(TemporalSplitError::RecoveryMemberOverlap(
+                    recovery.member_overlap_count,
+                ));
+            }
+            if recovery.temporal_overlap_count != 0
+                || recovery.retired_final_window.end_utc > self.train.window.start_utc
+            {
+                return Err(TemporalSplitError::RecoveryTemporalOverlap(
+                    recovery.temporal_overlap_count,
+                ));
+            }
         }
         Ok(())
     }
@@ -330,7 +414,67 @@ pub fn build_temporal_split_manifest(
             membership_sha256: final_test_membership_sha256,
             access_policy: FINAL_TEST_ACCESS_POLICY.to_owned(),
         },
+        recovery: None,
     };
+    manifest.validate()?;
+    Ok(manifest)
+}
+
+/// 恢复划分在普通时间合同之上，重新核对旧 Final commitment，并证明整个新 corpus 与其成员和时间均不重叠。
+pub fn build_recovery_temporal_split_manifest(
+    candidates: Vec<TemporalSplitCandidate>,
+    plan: TemporalSplitPlan,
+    source_dataset_sha256: String,
+    reference_candidates: &[TemporalSplitCandidate],
+    reference_manifest: &TemporalSplitManifest,
+    reference_split_manifest_sha256: String,
+) -> Result<TemporalSplitManifest, TemporalSplitError> {
+    require_sha256(
+        "recovery.reference_split_manifest_sha256",
+        &reference_split_manifest_sha256,
+    )?;
+    let retired_final = validated_final_candidates(reference_manifest, reference_candidates)?;
+    let retired_ids = retired_final
+        .iter()
+        .map(|candidate| candidate.series_id.as_str())
+        .collect::<BTreeSet<_>>();
+    let member_overlap_count = checked_count(
+        candidates
+            .iter()
+            .filter(|candidate| retired_ids.contains(candidate.series_id.as_str()))
+            .count(),
+    )?;
+    if member_overlap_count != 0 {
+        return Err(TemporalSplitError::RecoveryMemberOverlap(
+            member_overlap_count,
+        ));
+    }
+    let temporal_overlap_count = checked_count(
+        candidates
+            .iter()
+            .filter(|candidate| {
+                candidate.scheduled_start_utc < reference_manifest.final_test.window.end_utc
+            })
+            .count(),
+    )?;
+    if temporal_overlap_count != 0 {
+        return Err(TemporalSplitError::RecoveryTemporalOverlap(
+            temporal_overlap_count,
+        ));
+    }
+
+    let mut manifest = build_temporal_split_manifest(candidates, plan, source_dataset_sha256)?;
+    manifest.recovery = Some(RecoverySplitContext {
+        contract_version: RECOVERY_SPLIT_CONTRACT_VERSION,
+        reference_split_manifest_sha256,
+        retired_source_dataset_sha256: reference_manifest.source_dataset_sha256.clone(),
+        retired_final_window: reference_manifest.final_test.window.clone(),
+        retired_final_series_count: reference_manifest.final_test.series_count,
+        retired_final_membership_sha256: reference_manifest.final_test.membership_sha256.clone(),
+        member_overlap_count,
+        temporal_overlap_count,
+        independence_policy: RECOVERY_INDEPENDENCE_POLICY.to_owned(),
+    });
     manifest.validate()?;
     Ok(manifest)
 }
@@ -355,6 +499,25 @@ pub fn release_final_test(
         &authorization.evaluation_code_sha256,
     )?;
 
+    let final_candidates = validated_final_candidates(manifest, candidates)?;
+
+    Ok(ReleasedFinalTestManifest {
+        source_dataset_sha256: manifest.source_dataset_sha256.clone(),
+        window: manifest.final_test.window.clone(),
+        membership_sha256: manifest.final_test.membership_sha256.clone(),
+        series_ids: final_candidates
+            .into_iter()
+            .map(|candidate| candidate.series_id)
+            .collect(),
+        authorization,
+    })
+}
+
+fn validated_final_candidates(
+    manifest: &TemporalSplitManifest,
+    candidates: &[TemporalSplitCandidate],
+) -> Result<Vec<TemporalSplitCandidate>, TemporalSplitError> {
+    manifest.validate()?;
     let mut final_candidates = candidates
         .iter()
         .filter(|candidate| {
@@ -375,17 +538,11 @@ pub fn release_final_test(
     {
         return Err(TemporalSplitError::FinalTestCommitmentMismatch);
     }
+    Ok(final_candidates)
+}
 
-    Ok(ReleasedFinalTestManifest {
-        source_dataset_sha256: manifest.source_dataset_sha256.clone(),
-        window: manifest.final_test.window.clone(),
-        membership_sha256: commitment,
-        series_ids: final_candidates
-            .into_iter()
-            .map(|candidate| candidate.series_id)
-            .collect(),
-        authorization,
-    })
+fn checked_count(count: usize) -> Result<u32, TemporalSplitError> {
+    u32::try_from(count).map_err(|_| TemporalSplitError::SeriesCountOverflow)
 }
 
 fn membership_sha256(candidates: &[TemporalSplitCandidate]) -> String {
@@ -474,6 +631,49 @@ mod tests {
     fn build() -> TemporalSplitManifest {
         build_temporal_split_manifest(candidates(), plan(), "a".repeat(64))
             .expect("valid split must build")
+    }
+
+    fn retired_manifest() -> (TemporalSplitManifest, Vec<TemporalSplitCandidate>) {
+        let retired_plan = TemporalSplitPlan {
+            train: TimeWindow {
+                start_utc: utc("2025-01-01T00:00:00Z"),
+                end_utc: utc("2025-02-01T00:00:00Z"),
+            },
+            validation: TimeWindow {
+                start_utc: utc("2025-02-01T00:00:00Z"),
+                end_utc: utc("2025-03-01T00:00:00Z"),
+            },
+            calibration: TimeWindow {
+                start_utc: utc("2025-03-01T00:00:00Z"),
+                end_utc: utc("2025-04-01T00:00:00Z"),
+            },
+            final_test: TimeWindow {
+                start_utc: utc("2025-04-01T00:00:00Z"),
+                end_utc: utc("2025-05-01T00:00:00Z"),
+            },
+        };
+        let retired_candidates = vec![
+            TemporalSplitCandidate {
+                series_id: "retired-train".to_owned(),
+                scheduled_start_utc: utc("2025-01-10T00:00:00Z"),
+            },
+            TemporalSplitCandidate {
+                series_id: "retired-validation".to_owned(),
+                scheduled_start_utc: utc("2025-02-10T00:00:00Z"),
+            },
+            TemporalSplitCandidate {
+                series_id: "retired-calibration".to_owned(),
+                scheduled_start_utc: utc("2025-03-10T00:00:00Z"),
+            },
+            TemporalSplitCandidate {
+                series_id: "retired-final".to_owned(),
+                scheduled_start_utc: utc("2025-04-10T00:00:00Z"),
+            },
+        ];
+        let manifest =
+            build_temporal_split_manifest(retired_candidates.clone(), retired_plan, "e".repeat(64))
+                .expect("retired split must build");
+        (manifest, retired_candidates)
     }
 
     #[test]
@@ -597,6 +797,63 @@ mod tests {
         assert_eq!(
             release_final_test(&manifest, &drifted, authorization),
             Err(TemporalSplitError::FinalTestCommitmentMismatch)
+        );
+    }
+
+    #[test]
+    fn recovery_split_seals_retired_final_exclusion_without_exposing_ids() {
+        let (retired, retired_candidates) = retired_manifest();
+        let manifest = build_recovery_temporal_split_manifest(
+            candidates(),
+            plan(),
+            "a".repeat(64),
+            &retired_candidates,
+            &retired,
+            "f".repeat(64),
+        )
+        .expect("independent recovery split must build");
+
+        let recovery = manifest.recovery.as_ref().expect("recovery must exist");
+        assert_eq!(recovery.member_overlap_count, 0);
+        assert_eq!(recovery.temporal_overlap_count, 0);
+        assert_eq!(
+            recovery.retired_final_membership_sha256,
+            retired.final_test.membership_sha256
+        );
+        let serialized = serde_json::to_string(&manifest).expect("manifest must serialize");
+        assert!(!serialized.contains("retired-final"));
+        assert!(!serialized.contains("\"series_ids\":[\"final\"]"));
+    }
+
+    #[test]
+    fn recovery_split_rejects_retired_final_member_or_time_overlap() {
+        let (retired, retired_candidates) = retired_manifest();
+        let mut member_overlap = candidates();
+        member_overlap[0].series_id = "retired-final".to_owned();
+        assert_eq!(
+            build_recovery_temporal_split_manifest(
+                member_overlap,
+                plan(),
+                "a".repeat(64),
+                &retired_candidates,
+                &retired,
+                "f".repeat(64),
+            ),
+            Err(TemporalSplitError::RecoveryMemberOverlap(1))
+        );
+
+        let mut time_overlap = candidates();
+        time_overlap[0].scheduled_start_utc = utc("2025-04-20T00:00:00Z");
+        assert_eq!(
+            build_recovery_temporal_split_manifest(
+                time_overlap,
+                plan(),
+                "a".repeat(64),
+                &retired_candidates,
+                &retired,
+                "f".repeat(64),
+            ),
+            Err(TemporalSplitError::RecoveryTemporalOverlap(1))
         );
     }
 }

@@ -31,3 +31,8 @@
 - MODEL-006 Walk-forward 固定为 expanding train、独立 calibration、后续 evaluation；evaluation membership 不重叠，所有时间/赛区/BO 分段完整输出。Market Baseline 不与不同 linked-only 母体混算；任务只产出证据，不替 MODEL-007 作 Gate 1 决策。
 - MODEL-007 release 前必须冻结候选、artifact/config/evaluation hashes；Rust 按 `(Scheduled Start, series_id)` 重新核对 final commitment。一次性 Final Test 成功后禁止覆盖或重跑，失败结果永久保留；当前 Gate 1 为 `failed_stop_modeling`，M4 被阻塞。
 - M3R 失败归因只消费不可变 model/evaluation artifacts；已释放 Final 永久退役为 diagnostic evidence。构成分解只在公开和 Final 共同 `Region×BO` cells 内计算，公开未覆盖 cells 单列为 evidence gap，不允许外推或参与模型选择。
+- Recovery Temporal Split 必须从旧 source 重新核对 retired Final commitment，并证明旧 Final 与整个新 corpus 的成员和时间均零重叠；只排除新 Final 不足以恢复独立性。aggregate coverage 可发布，但不包含 Final IDs 或 label，也不得驱动模型选择。
+- 恢复建模采用两速数据流：Rust Core Evidence 固定 identity/cutoff/membership/seal/lineage，Python Feature Lab 迭代实验列并记录 `source_max_at/input_count/status`；只有 Walk-forward 晋升后的冻结 FeatureSet 进入完整 release lineage。
+- M3R-005 P0 使用赛前 game Elo logit fixed offset，只拟合少量 opponent-quality/time-decay/schedule residual；series 完成后按最终 game counts batch update，BO3/BO5 series probability 由确定性 DP 生成，unsupported cell 回退 Elo。tree、roster/Patch micro-stat 和完整 Bayesian hierarchy 均为未授权 P1。
+- ScoreboardGames 当前不含逐局 winner，不能声称恢复 per-game outcome order；P0 只能在 `T-15m` 预测 game probability，并在 series 完成后按最终 game counts 做零和 batch Elo update。真正 sequential game Elo 必须新增带 winner/available_at 的 Game Result evidence。
+- P0 公开 Walk-forward 仅 1/4 自然构成 folds、1/4 固定共同 `Region×BO` folds 双指标改善，状态为 `failed_public_stability_stop_before_final`。不得 release 新 Final，也不得对已观察结果继续做同源参数/窗口搜索；默认保留生成式 Elo。

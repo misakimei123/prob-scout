@@ -1,7 +1,8 @@
 use std::{env, error::Error, fs, path::PathBuf};
 
 use prob_scout::temporal_split::{
-    TemporalSplitCandidate, TemporalSplitPlan, build_temporal_split_manifest,
+    TemporalSplitCandidate, TemporalSplitManifest, TemporalSplitPlan,
+    build_recovery_temporal_split_manifest, build_temporal_split_manifest,
 };
 use serde::Deserialize;
 
@@ -10,6 +11,16 @@ use serde::Deserialize;
 struct BuildInput {
     source_dataset_sha256: String,
     plan: TemporalSplitPlan,
+    candidates: Vec<TemporalSplitCandidate>,
+    #[serde(default)]
+    retired_final_reference: Option<RetiredFinalReference>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RetiredFinalReference {
+    split_manifest_sha256: String,
+    split_manifest: TemporalSplitManifest,
     candidates: Vec<TemporalSplitCandidate>,
 }
 
@@ -38,8 +49,19 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     // 构建入口只读取 series identity 与 Scheduled Start，不读取特征值或赛果 label。
     let input: BuildInput = serde_json::from_slice(&fs::read(&input_path)?)?;
-    let manifest =
-        build_temporal_split_manifest(input.candidates, input.plan, input.source_dataset_sha256)?;
+    let manifest = if let Some(reference) = input.retired_final_reference {
+        // 恢复路径重新计算旧 Final commitment，并拒绝旧 Final 的成员或时间进入新 corpus。
+        build_recovery_temporal_split_manifest(
+            input.candidates,
+            input.plan,
+            input.source_dataset_sha256,
+            &reference.candidates,
+            &reference.split_manifest,
+            reference.split_manifest_sha256,
+        )?
+    } else {
+        build_temporal_split_manifest(input.candidates, input.plan, input.source_dataset_sha256)?
+    };
     fs::write(output_path, serde_json::to_vec_pretty(&manifest)?)?;
     Ok(())
 }

@@ -1,6 +1,6 @@
 # Active Context
 
-更新日期：2026-08-13
+更新日期：2026-08-14
 
 ## 当前状态
 
@@ -31,10 +31,12 @@
 - `M3R-001` 已使用完全相同的 325 场冻结候选重放 959 个公开 evaluation IDs，仍在 3/3 folds 略优于 Elo；因此 expanding/frozen 训练协议差异存在但不足以解释 Final sign reversal。Final BO5 share 从 `7.51%` 升至 `47.19%`，共同 `Region×BO` cells 的 Brier composition/residual 为 `+0.0077955435/+0.0084671032`，两者均有实质贡献；18 场 `China|BO5` 无公开参照。旧 Final 已永久退役，归因 artifact SHA-256 为 `ba126c4ea192f4078f8795646796fa37cf5a2503a9f0cd7a89c59cd7e543271c`。
 - `M3R-002` 已建立 `[2025-07-01,2026-07-01)` 非重叠 source candidate corpus：16,598 个 MatchId 得到 3,759 candidates、12,839 rejections，覆盖 349 个 UTC 日期、25 Patch、9 个 Region source value、BO3 2,819 / BO5 940。旧 1,778 条结束于 `2025-06-30T18:30:00Z`，新 candidate 起于 `2025-07-01T16:00:00Z`，member/temporal overlap 均为 0；103 个 raw page、旧 corpus upstream 和 output hash 已全量复核。dataset SHA-256 为 `f5c4210a04417392c92801a8d5f9e7d6c2b7c9f2871e63bd6e89d77f3d32860b`。
 - `M3R-003` 已将 identity builder 泛化为跨年度 exact relation 审核，但没有放宽 identity：`Tournaments.Year` 仅为描述字段，Competition 仍由候选赛事时点的 `OverviewPage -> League/Region` relation 证明。3,759 candidates 得到 3,155 fully resolved、604 blocked；202/694 team keys Missing、267/267 competition keys Resolved、Ambiguous 为 0。3,155 条 Series Result 与 `T-15m` Feature Snapshot 成员完全一致，与旧 M2 corpus overlap 为 0，source-time/snapshot-lead/赛后字段 leakage 均为 0；Identity/Series/Feature SHA-256 分别为 `8f3e7aeadc9cf071adbe21fd74becd52126cd720fbe017b45b4755964d7bb331`、`dff9c9ee61cabf0c3a5a0a6aa9518fcd02cf6d28aa02a1cae6d6cd6a7817e6ac`、`8433cc10ee73cab042049d0afe0f81cfc0d96504348346178fb6c4baaa3c7f2b`。
+- `M3R-004` 已用独立 recovery context 建立新 split：Train/Validation/Calibration/sealed Final 为 1,281/430/743/701，窗口依次为 2025-07–12、2026-01–02、2026-03–04、2026-05–06。旧 356 场 Final 的 commitment 已从旧 Feature Snapshot 重算，与整个新 corpus 的 member/temporal overlap 均为 0；新 Final 只公开 count 与 commitment `d8b3f5e2cca5eb707173a1ea4a8881c0b9e764173e6d24a373899639fab3a130`。split SHA-256 为 `ed7564bf68a4e16400c1d712242861a03a32893ecad5a91d814c86c1dcba64b1`，aggregate-only coverage 不输出 final IDs 或 label。
+- `M3R-005` 已实现 P0 两速 Feature Lab、series-atomic game-count Elo、fixed game-Elo-logit offset residual 与 BO3/BO5 DP。2,454 个 model rows、39,264 个 audit rows 的 source-time violation 为 0；1,173 条公开 Walk-forward 汇总相对 Elo 的 Brier/Log Loss delta 为 `-0.00115008/-0.00180314`，但 Fold 1/2 双指标劣化、Fold 4 Log Loss 劣化，固定共同 `Region×BO` 构成后 3/4 folds 双指标劣化。状态为 `failed_public_stability_stop_before_final`，273 条 fallback，新 701 条 Final 未 release；artifact SHA-256 为 `f4e4892ca5daffd5edb1bfc2b785cf74cb8bb8fcc26860c2ab058c8d441a2144`。
 
 ## 下一任务
 
-下一任务是 `M3R-004`，只为 M3R-003 的 3,155 条新 eligible members 建立连续、唯一、无重叠的 Development splits 与从未公开成员的 sealed Final Test。必须显式排除已退役的旧 356 场 Final Test，固定 membership commitment 和独立 release 合同；不得提前训练恢复模型或开始 `BACK-001`。
+下一任务是 `M3R-005A` 决定是否存在足够新增原子证据授权 P1，默认选择停止统计恢复并保留生成式 Elo。不得 release 或推导 701 条 sealed Final 成员，也不得因已看到 P0 四窗结果而搜索 half-life、Elo K、L2、support threshold、删分段或同源 feature 组合。只有先证明真实 Game Result / roster availability 等新 evidence 的 `T-15m` 秒级可得性和针对性，才可另行批准 P1；M3R-006、M4、策略、PnL 与执行继续阻塞。
 
 关键验收边界：
 
@@ -65,4 +67,4 @@
 
 ## 首次检查
 
-进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/RECOVERY_IDENTITY_SERIES_FEATURES.md`、`docs/GATE1_FAILURE_ATTRIBUTION.md`、`docs/TASK_BREAKDOWN.md` 与 `CONTEXT.md`。下一任务只执行 `M3R-004` 新 Development / sealed Final Test，不训练模型、不重跑 MODEL-007、不开始 `BACK-001`。
+进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/RECOVERY_MODEL_P0.md`、`docs/RECOVERY_TEMPORAL_SPLIT.md`、`docs/TASK_BREAKDOWN.md` 与 `CONTEXT.md`。下一任务只执行 `M3R-005A` P1 evidence Go/Kill 决策；未经新证据授权不继续建模，不 release 新 Final、不重跑 MODEL-007、不开始 `BACK-001`。

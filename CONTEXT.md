@@ -116,6 +116,22 @@ _Avoid_: Recycled holdout, post-test tuning set, second final evaluation
 时间上严格晚于已退役 Final Test、成员零重叠且重新执行 identity/result/feature/split lineage 的新数据批次；只有新的 sealed Final Test 才能支持恢复 Gate。
 _Avoid_: Extended old final, shuffled old corpus, renamed holdout
 
+**Recovery Temporal Split**:
+在新的 Recovery Cohort 上建立的独立 train、validation、calibration 与 sealed final test 合同；必须重新计算已退役 Final commitment，并证明旧 Final 与整个新 corpus 的成员重叠和时间重叠均为 0。描述性 Final coverage 可以发布 aggregate，但不得发布成员 ID 或据此选择模型。
+_Avoid_: Reused final, final-only exclusion, label-selected boundary
+
+**Feature Lab**:
+只消费公开 Development 与 cutoff 前原子证据的 Python 研究层；实验特征输出 value 及 `source_max_at/input_count/status` 审计，不要求每列先增加 Rust struct 或 SQLite migration。只有经 Walk-forward 晋升的冻结 FeatureSet 才进入完整 release lineage。
+_Avoid_: Untracked notebook feature, production schema per experiment, final-test materialization
+
+**Elo Offset Residual Model**:
+以赛前 game Elo 的 logit 为固定 offset，只拟合 Elo 未解释的少量赛前 residual；当前没有逐局 winner evidence，因此 series 完成后只按最终 game counts 做 batch Elo update。无支持条件收缩或回退 Elo，不重新用高维特征平行学习完整队伍强弱。
+_Avoid_: Elo as optional feature, fabricated game order, unrestricted team-strength relearning, postgame leakage
+
+**Generative Series Probability**:
+从 cutoff 时可得的逐局胜率通过确定性 BO3/BO5 动态规划计算系列赛胜率；赛制决定所需胜局数，不作为可自由拟合的单一结果修正项。
+_Avoid_: BO5 dummy correction, series-label frequency shortcut, simulation noise
+
 **Data Quality Gate**:
 在模型开发前对 eligible series 数量、时间/赛区/Patch 覆盖、关键字段缺失、时间防泄漏、异常分布和历史市场真实性等级作出的可重复判定。`NotReadyForM3` 表示数据构建任务可以完成，但模型阶段仍被证据门禁阻塞。
 _Avoid_: Report completed, pipeline passed

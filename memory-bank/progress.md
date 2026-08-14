@@ -1,6 +1,6 @@
 # Progress
 
-更新日期：2026-08-13
+更新日期：2026-08-14
 
 ## 已完成
 
@@ -35,9 +35,11 @@
 - M3R：`M3R-001` Gate 1 失败归因；完全相同冻结模型公开重放仍略优于 Elo，Final 的 BO/Region 构成变化和共同 cell 内退化均为实质因素，旧 Final 永久退役。
 - M3R：`M3R-002` 非重叠恢复候选语料；`[2025-07-01,2026-07-01)` 得到 3,759 candidates，覆盖 349 个 UTC 日期、25 Patch、9 Region source value 和 BO3/BO5，且与旧 1,778 条 member/temporal overlap 均为 0。
 - M3R：`M3R-003` 新时间化 identity、Series Result 与 `T-15m` Feature Snapshot；3,759 candidates 中 3,155 fully resolved，604 因缺失 team exact relation 继续 fail closed，Series/Feature 成员一致且 source-time leakage 为 0。
+- M3R：`M3R-004` 独立 Development / sealed Final；3,155 条按连续日历窗口划为 1,281/430/743/701，旧 Final 与整个新 corpus 的 member/temporal overlap 均为 0，新 Final 只发布 count 与 commitment，描述性 coverage 不包含 Final IDs 或 label。
+- M3R：`M3R-005` P0 Feature Lab / game-count Elo offset / BO DP / Walk-forward；1,173 evaluation 汇总略优于 Elo，但自然构成仅 1/4 folds 双指标改善、固定共同 `Region×BO` 也仅 1/4 folds 改善，裁决为 `failed_public_stability_stop_before_final`，新 Final 未 release。
 
 ## 待完成
 
-- M3R：下一任务 `M3R-004`，只为新 3,155 条 eligible members 建立 Development splits 与从未公开成员的 sealed Final Test。模型恢复与 M4 继续阻塞。
+- M3R：下一任务 `M3R-005A`，只判断新增 Game Result / roster availability 等原子证据是否足以授权 P1；默认停止统计恢复并保留生成式 Elo。701 条新 Final、M3R-006、M4、策略、PnL 和执行继续阻塞。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。

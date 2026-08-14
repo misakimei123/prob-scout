@@ -1,0 +1,57 @@
+{
+  "config_version": 1,
+  "model_family": "game_elo_offset_residual",
+  "elo": {
+    "initial_rating": 1500.0,
+    "rating_scale": 400.0,
+    "k_factor_per_game": 20.0,
+    "update_contract": "series_atomic_game_count_batch"
+  },
+  "feature_set": {
+    "name": "p0_opponent_quality_schedule_v1",
+    "snapshot_lead_minutes": 15,
+    "residual_half_lives_days": [30, 90],
+    "strength_of_schedule_half_life_days": 90,
+    "schedule_windows_days": [7, 14],
+    "minimum_team_history_games": 6,
+    "feature_names": [
+      "opponent_adjusted_residual_30d_diff",
+      "opponent_adjusted_residual_90d_diff",
+      "strength_of_schedule_90d_diff",
+      "games_7d_diff",
+      "games_14d_diff",
+      "rest_days_capped_diff",
+      "log_history_games_diff"
+    ]
+  },
+  "residual_model": {
+    "offset": "pregame_game_elo_logit",
+    "series_link": "deterministic_best_of_dynamic_program",
+    "l2_penalty": 10.0,
+    "optimizer": "scipy.optimize.minimize_L-BFGS-B",
+    "max_iterations": 1000,
+    "gradient_tolerance": 1e-09
+  },
+  "fallback": {
+    "minimum_region_bo_train_series": 30,
+    "probability": "generative_elo_series_probability"
+  },
+  "walk_forward": {
+    "evaluation_windows": [
+      ["2026-01-01T00:00:00Z", "2026-02-01T00:00:00Z"],
+      ["2026-02-01T00:00:00Z", "2026-03-01T00:00:00Z"],
+      ["2026-03-01T00:00:00Z", "2026-04-01T00:00:00Z"],
+      ["2026-04-01T00:00:00Z", "2026-05-01T00:00:00Z"]
+    ],
+    "coefficient_policy": "fit_once_on_all_prior_development_per_window",
+    "elo_policy": "online_update_from_results_completed_before_each_t15m_cutoff"
+  },
+  "excluded_p1": [
+    "tree_model",
+    "target_actual_roster",
+    "side_selection",
+    "draft",
+    "patch_micro_statistics",
+    "full_bayesian_hierarchy"
+  ]
+}

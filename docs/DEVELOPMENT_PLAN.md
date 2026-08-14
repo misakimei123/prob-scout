@@ -1,12 +1,14 @@
 # ProbScout 详细开发计划
 
-> 状态：Draft v4
+> 状态：Draft v5
 >
 > 制定日期：2026-08-12
 >
+> 最近修订：2026-08-14
+>
 > 当前题材：League of Legends（LOL）职业比赛胜负预测
 >
-> 当前阶段：Research First，先在本地完成 Paper 与真实下单链路验证，再条件性进入小资金实盘；暂不部署长期 VPS
+> 当前阶段：Research First；Gate 1 已失败并停止旧 MODEL-004 路线，当前按 M3R 恢复计划建立新 seal 与 P0 恢复模型；M4、策略、PnL 和执行继续阻塞
 
 > 执行清单：[TASK_BREAKDOWN.md](./TASK_BREAKDOWN.md)
 
@@ -21,6 +23,23 @@ ProbScout 只维护两份核心计划文档，不复制 IronPilot 的多层治�
 - 不为普通可回退选择创建 ADR。只有真钱权限、数据许可、实验口径等难回退决策才单独记录。
 
 任务的最小完成闭环是：确认依赖与边界 → 检查成熟开源库 → 做最小实现 → 运行窄范围验证 → 记录结果。Task 完成不代表阶段 Gate 自动通过；Gate 必须根据该阶段累计证据单独作出 `Go`、`Conditional Go` 或 `Kill` 判断。
+
+### 0.1 2026-08-14 模型恢复路线修订
+
+本节 supersede 本文早期对“第一版赛前统计模型”的宽泛描述；后续开发不得继续把旧 MODEL-004 的 10 维累计 form Logistic Regression 当作当前推荐路线。
+
+- 旧 MODEL-004 已在一次性 Final Test 上显著劣于 Elo，Gate 1 状态为 `failed_stop_modeling`；旧 Final Test 永久退役，只允许失败归因，禁止再次用于 feature、model、parameter 或 calibration 选择。
+- 恢复顺序固定为：先完成 `M3R-004` 新 Development / sealed Final Test，再在 `M3R-005` 开发 P0 候选；只有公开 Walk-forward 稳定或 `M3R-005A` 基于新增原子证据授权并得到稳定 P1 候选，才允许由 `M3R-006` 对新 Final 作一次性 Gate 决策。
+- P0 主模型固定为“赛前 game Elo logit offset + series 完成后的 game-count batch update + 少量赛前残差特征 + BO3/BO5 生成式概率映射”；现有 evidence 没有逐局 winner，不得伪造 per-game 顺序。没有证据支持时应收缩或回退到 Elo，不再从累计胜率平行重学完整队伍强弱。
+- P0 首批残差只允许使用对手质量校正、时间衰减 form、赛程密度与可用性；roster/player、Patch/micro-stat 和完整 Bayesian 层级模型属于后续 P1 候选，未经新的时间化证据与 P0 反例不得提前引入。
+- Rust 继续守 identity、event/result、cutoff、membership、seal 和 immutable lineage；研究特征在 Python Feature Lab 中迭代，只有晋升为冻结 FeatureSet 后才支付完整 Manifest、文档和回归验证成本。实验列不得驱动 SQLite migration，也不要求先增加 Rust 业务 struct。
+- Dataset Manifest、`T-15m`、时间切分、一次性 Final Test 和 fail-closed 底线继续保留；减重只针对重复脚本和列级耦合，不降低防未来泄漏、可重现性或防过拟合标准。
+
+### 0.2 2026-08-14 P0 Walk-forward 后状态
+
+M3R-004 已建立 1,281/430/743/701 的独立 recovery split。M3R-005 P0 在 1,173 条公开 evaluation 汇总上相对生成式 Elo 略优，但自然构成 Fold 1/2 双指标劣化、Fold 4 Log Loss 劣化，固定共同 `Region×BO` 构成后 3/4 folds 双指标劣化，因此状态为 `failed_public_stability_stop_before_final`。
+
+701 条新 Final Test 继续 sealed，M3R-006 不获授权。后续不得通过搜索 half-life、Elo K、L2、support threshold 或删分段来消费当前公开结果；只有补充真实 Game Result / roster availability 等新增原子证据并单独批准 P1，才允许产生新候选。默认路径是保留生成式 Elo、停止统计恢复并继续阻塞 M4。
 
 ## 1. 项目定义
 
@@ -192,25 +211,22 @@ and risk check passes:
 2. `EloBaseline`：仅使用比赛发生前可得的历史结果更新 Elo。
 3. `MarketBaseline`：使用同一决策时点的市场概率；评估时明确使用 midpoint 或去价差后的概率，交易成本仍使用 ask。
 
-### 4.2 第一版主模型
+### 4.2 当前恢复主模型
 
-优先建立可解释的赛前统计模型，候选输入包括：
+Gate 1 失败后的 P0 候选不再用累计 team form 平行替代 Elo，而以赛前 game Elo 为 fixed logit offset，只学习 Elo 未解释的残差。现有 ScoreboardGames 不含逐局 winner，因此只在 series 完成后按最终 game counts 做 batch update；候选输入按优先级限定为：
 
-- 队伍赛前 Elo 与赛区强度修正
-- 近期比赛结果，但必须设置时间衰减
-- 对手强度
-- BO3 / BO5 赛制
-- Patch 版本
-- 赛区与赛事级别
-- 选边信息（仅当 `T-15m` 前可靠可得）
-- 已确认首发阵容与 roster stability
-- 跨赛区比赛和国际赛事标记
+- 小局开始前已冻结的双方 Elo 与 Elo 预期胜率；
+- `30d/90d` 时间衰减的 `actual - pregame Elo probability` 对手质量校正 residual；
+- 对手赛前 strength of schedule；
+- `7d/14d` 已完成小局数、系列赛数和赛程密度；
+- 每个 residual 的有效样本数、最后来源时间和 unavailable 状态；
+- BO3/BO5 不作为单一常数 dummy，而由逐局概率通过确定性 DP 推导系列赛胜率。
 
-第一版不使用会造成高维过拟合的大量局内统计。先比较 logistic regression、Elo-logistic 和一个受控的 tree model；模型选择以时间外推表现和 calibration 为主，不以训练集 accuracy 为主。
+P0 只比较 Elo baseline、固定 Elo-offset Logistic Regression 与必要的 Elo fallback，不引入 tree model。P1 才允许在独立证据充分时评估 roster continuity、player rating、Patch adaptation 和少量局内质量统计；目标实际首发、选边或 draft 若只能从赛后记录取得，必须拒绝。模型选择以严格时间外推、分段反例和 calibration 为主，不以训练集 accuracy 为主。
 
 ### 4.3 概率校准
 
-模型必须在独立 calibration window 上使用 Platt scaling 或 isotonic regression。不得在最终 test set 上拟合校准器。
+校准只能在独立 calibration window 上拟合，且必须由后续时间窗证明稳定；不得在最终 test set 上拟合校准器。P0 默认先评估 raw generative series probability，不因旧 MODEL-005 曾使用 sigmoid 就预设新模型必须校准；Platt scaling 或 isotonic 只有在公开 Walk-forward 多个窗口一致改善时才可进入冻结候选。
 
 输出必须保留：
 
@@ -300,12 +316,17 @@ ProbScout 不把 Polymarket 价格同时当作“独立胜率预测”和“被�
 - roster、Patch、赛程和市场报价必须使用当时版本，而不是当前修订后的页面状态。
 - 数据清洗规则必须先在训练集确定，然后统一应用到后续数据。
 - 所有数据集生成脚本输出 manifest、row count、时间范围和内容 hash。
+- 每条原子事实区分 `event_at`、`available_at` 与 `captured_at`；历史比赛完成时间不能冒充 roster/news 当时已发布的证据时间。
+- 小局不得跨 split；同一 series 的全部小局继承 series split，评估置信区间按 series 或日期聚类，不能把同系列小局当作完全独立样本。
+- 除自然构成总体指标外，必须报告固定 `Region×BO` composition、最差时间窗和 unsupported cell；importance weighting 只作诊断，不得在小样本下用极端权重制造通过结果。
 
 最低目标是500场 eligible series，但样本数量不是自动通过条件。最终判断依赖置信区间、跨时间稳定性和执行成本压力测试。
 
 ## 8. 系统架构
 
-第一版采用简单单体程序，不采用微服务、企业级分层或预先设计的插件框架。生产运行时以 Rust 为主；研究和模型训练允许 Python。只有在出现第二个真实实现、文件已经难以维护或测试明确需要时，才继续拆分模块。
+第一版采用简单单体程序，不采用微服务、企业级分层或预先设计的插件框架。生产运行时以 Rust 为主；研究和模型训练允许 Python。研究数据流采用“两速边界”：Rust 固定 Core Evidence 与防泄漏合同，Python Feature Lab 负责可丢弃实验和冻结 FeatureSet。该边界不是通用插件系统；只有经 Walk-forward 晋升的 FeatureSet 才进入完整 release lineage。
+
+Feature Lab 每次 materialization 至少输出模型矩阵与审计表：模型矩阵保存 feature values，审计表保存 `series_id/team_id/feature_name/source_max_at/input_count/status`。通用 validator 统一检查 membership、cutoff、missing、输入 DAG 和追加未来数据不变性，避免每新增一列同时修改 Rust struct、字段级 data-quality validator、PowerShell 转换和 Python parser。
 
 ```text
 prob-scout/
@@ -582,26 +603,29 @@ Kill 条件：
 
 ### M2–M3：历史数据集与概率预测研究
 
-目标：在不考虑复杂交易执行前，判断模型是否具有概率预测价值。
+目标：在不考虑复杂交易执行前，判断模型是否具有概率预测价值。旧 MODEL-004–007 已完成但 Gate 1 失败；当前 M3R 是同一阶段的恢复路线，不得把旧任务完成误报为模型有效。
 
 #### 工作项
 
 - 构建 clean event dataset。
 - 实现 Constant、Elo 和 Market baselines。
-- 实现赛前统计模型和 calibration。
+- 先建立新 recovery Development / sealed Final Test，显式排除旧 Final；
+- 实现可审计的 game-count Elo baseline、Elo-offset residual model 和 BO3/BO5 生成式映射；
+- 建立轻量 Python Feature Lab 与冻结 FeatureSet 晋升合同；
+- 只在公开 Walk-forward 稳定改善时评估 calibration；
 - 进行 expanding-window walk-forward。
 - 输出整体与分段的 Brier、Log Loss 和 calibration。
 - 建立 feature leakage tests。
-- 建立500场以上 eligible series 的最终测试集；如果覆盖不足，延长时间范围而不是降低质量标准。
+- 建立足量 eligible series 的独立最终测试集；如果覆盖不足，延长时间范围而不是降低质量标准；旧 Final 永久不得复用。
 
 #### Gate 1
 
 继续条件：
 
-- final test 上模型相对 EloBaseline 至少表现不劣；
+- 新 final test 上模型相对同口径 game-count EloBaseline 至少表现不劣；
 - 相对 MarketBaseline 至少一个主要 scoring rule 有正 improvement，且不是单一赛区贡献；
 - calibration 没有明显系统性过度自信；
-- 结果在多个时间窗口方向一致。
+- 结果在多个时间窗口方向一致，且 unsupported cell 会显式回退 Elo。
 
 Kill 或回退条件：
 
