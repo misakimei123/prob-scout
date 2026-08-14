@@ -128,6 +128,22 @@ _Avoid_: Untracked notebook feature, production schema per experiment, final-tes
 以赛前 game Elo 的 logit 为固定 offset，只拟合 Elo 未解释的少量赛前 residual；当前没有逐局 winner evidence，因此 series 完成后只按最终 game counts 做 batch Elo update。无支持条件收缩或回退 Elo，不重新用高维特征平行学习完整队伍强弱。
 _Avoid_: Elo as optional feature, fabricated game order, unrestricted team-strength relearning, postgame leakage
 
+**P1 Evidence Authorization**:
+P0 未通过公开稳定性后，对新增原子证据是否同时满足 `T-15m` 可得、秒级 `available_at` 可审计且能针对具体公开反例的独立 Go/Kill 门禁；字段当前存在、赛后可见或总体相关性都不能替代三个合取条件。
+_Avoid_: Schema-only Go, postgame roster feature, post-hoc parameter search
+
+**Prematch Actual Lineup Source Gate**:
+对一个来源是否有资格进入前瞻采集的合取门禁；同一来源必须具有明确 Research 权限、目标 Game 1 实际五人首发语义、稳定 Event/Team/Player ID、秒级 `available_at`、T-15 capture 和 immutable raw。通过只表示 `ReadyForForwardCollection`，不等于 P1 获准。
+_Avoid_: Cross-source capability stitching, tournament roster as starting lineup, source Go as model Go
+
+**Official Lineup Source Registry**:
+按目标赛区登记官方 league/team 公告 channel 及其可审计能力的版本化清单；当前静态合同要求每个赛区至少有一条来源独立证明官方归属、Game 1 五人语义、赛区覆盖、稳定 permalink、无需登录的稳定访问、秒级时间、稳定 Event/Team/Player ID 和 immutable raw。它只裁决是否有资格开始前瞻采集，不证明覆盖率、准确率或 P1 增量。
+_Avoid_: Social post example as eligible feed, capability stitching, registry Go as P1 Go
+
+**Recovery Model Kill Decision**:
+P1 evidence 未通过后正式停止当前统计恢复路线并保留生成式 Elo 的裁决；它不 release sealed Final、不进入恢复 Gate，也不授权策略、PnL 或执行。未来新数据必须先建立独立任务合同，不能直接复用已观察窗口恢复建模。
+_Avoid_: Elo approved for trading, paused tuning, implicit M3R-006 authorization
+
 **Generative Series Probability**:
 从 cutoff 时可得的逐局胜率通过确定性 BO3/BO5 动态规划计算系列赛胜率；赛制决定所需胜局数，不作为可自由拟合的单一结果修正项。
 _Avoid_: BO5 dummy correction, series-label frequency shortcut, simulation noise

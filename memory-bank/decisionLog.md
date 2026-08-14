@@ -119,3 +119,15 @@ M3R-004 在普通 Temporal Split Manifest 上增加独立 recovery context：重
 ## 2026-08-14 — P0 未通过公开时间稳定性并停止在 Final release 前
 
 M3R-005 的 1,173 条公开 Walk-forward evaluation 在自然构成汇总上相对生成式 Elo 略优，但 Fold 1/2 的 Brier 与 Log Loss 均劣化，Fold 4 只有 Brier 微弱改善；固定四窗共同 `Region×BO` 构成后 3/4 folds 双指标劣化。该证据反驳了“总体均值改善即足够晋级”的解释，因此状态固定为 `failed_public_stability_stop_before_final`。现有 ScoreboardGames 没有逐局 winner，P0 只使用可审计的 series-atomic game-count batch update，不伪造局序。影响是新 701 条 Final 继续 sealed，M3R-006 不获授权；不得通过搜索当前参数或删反例继续试验，下一步只能先作新增原子证据的 P1 Go/Kill 决策，默认保留生成式 Elo并停止统计恢复。
+
+## 2026-08-14 — P1 evidence 不足并 Kill 统计恢复路线
+
+M3R-005A 确认 Leaguepedia 当前 ScoreboardGames schema/Cargo 行包含逐局 winner 和 player fields，但“字段存在”不满足 prematch evidence 门禁。五个主要公开反例的目标实际 roster 在 `T-15m` immutable revision 中 0/5 可得；10/10 team-sides 的最近已发布 roster 虽可审计，却与赛后目标 lineup 10/10 相同，不能解释反例。固定 P0 `scale=400/K=20` 枚举全部合法 BO3/BO5 局序后，单个已完成系列赛的 sequential update 相对 batch update 对紧邻下一系列赛概率的一步影响小于 `0.0097` 且方向未证明；该局部界不声称约束多场累积 rating divergence。原因是 P1 Go 必须同时满足 `T-15m` 可得、秒级 `available_at` 可审计和具体反例针对性，不能由当前 schema、赛后 lineup 或 post-hoc 参数搜索替代。影响是裁决 `kill_recovery_model_keep_generative_elo`，不授权 roster/player、sequential Elo、Patch/micro-stat 或其他 P1；新 Final 继续 sealed，M3R-006、M4、策略、PnL 与执行保持阻塞。未来新 evidence 必须先建立独立任务合同，不能直接恢复本路线。
+
+## 2026-08-14 — Actual lineup source feasibility 与 P1 authorization 分离
+
+EVID-001 要求单一来源同时具备 Research 权限、目标 Game 1 实际五人首发语义、稳定 Event/Team/Player ID、秒级 `available_at`、T-15 capture 和 immutable raw，禁止把 Leaguepedia tournament roster 的时间能力与 postgame scoreboard 的实际阵容语义拼成虚构 feed。当前 Riot/GRID、Leaguepedia TournamentRosters/ScoreboardGames、Oracle's Elixir 和官方公告五类来源 eligible 为 0/5，因此裁决 `blocked_no_eligible_source`。原因是 source feasibility 未通过时直接写 collector 只会系统化采集弱证据；先冻结 28 天 China/Korea 全量 BO3/BO5 观察协议，则可防止未来按可用公告或阵容变化挑样本。影响是当前不启动 forward collection、不授权 P1 或 Final release；未来 source gate Go 也只进入 `ReadyForForwardCollection`，仍需覆盖、准确率和 changed-lineup 门槛后才能另行讨论 P1。
+
+## 2026-08-14 — 官方首发公告必须按赛区独立完成 source registry
+
+EVID-002 禁止用 LPL/LCK 的单个社交帖子直接启动采集，要求 China 与 Korea 各自至少有一条官方来源独立通过官方归属、Game 1 五人语义、目标赛区覆盖、稳定 permalink、无需登录稳定访问、秒级 `available_at`、稳定 Event/Team/Player ID 与 immutable raw。LPL 官方微博已证明中心公告语义，但访问、秒级时间、identity 和 raw 合同不完整；LCK 规则已证明联盟掌握并披露五人 entry，但逐场公开 channel 未定位。因此裁决 `blocked_registry_incomplete`。原因是“公告存在”不能证明系统性 feed，且两个赛区的来源机制不可互相外推。影响是 EVID-001 的 28 天窗口仍未授权；若未来接受 authenticated API，必须由新任务显式修改 login-free 合同并审核凭证、费用、retention 与 sample response，不能在现 registry 中直接翻转布尔值。

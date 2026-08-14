@@ -37,9 +37,12 @@
 - M3R：`M3R-003` 新时间化 identity、Series Result 与 `T-15m` Feature Snapshot；3,759 candidates 中 3,155 fully resolved，604 因缺失 team exact relation 继续 fail closed，Series/Feature 成员一致且 source-time leakage 为 0。
 - M3R：`M3R-004` 独立 Development / sealed Final；3,155 条按连续日历窗口划为 1,281/430/743/701，旧 Final 与整个新 corpus 的 member/temporal overlap 均为 0，新 Final 只发布 count 与 commitment，描述性 coverage 不包含 Final IDs 或 label。
 - M3R：`M3R-005` P0 Feature Lab / game-count Elo offset / BO DP / Walk-forward；1,173 evaluation 汇总略优于 Elo，但自然构成仅 1/4 folds 双指标改善、固定共同 `Region×BO` 也仅 1/4 folds 改善，裁决为 `failed_public_stability_stop_before_final`，新 Final 未 release。
+- M3R：`M3R-005A` P1 evidence Go/Kill；Leaguepedia winner/player fields 存在，但五个主要反例的目标 roster 在 `T-15m` 0/5 可得，10/10 last-known roster 与目标一致；逐局顺序只有小于 `0.0097` 且方向未证明的单步影响。裁决为 `kill_recovery_model_keep_generative_elo`，当前统计恢复路线结束。
+- EVID：`EVID-001` 赛前 actual Game 1 lineup source feasibility；五类候选来源 eligible 0/5，裁决 `blocked_no_eligible_source`。六项 source gate、28 天 China/Korea 前瞻协议和 observation fail-closed auditor 已冻结，当前不授权采集或 P1。
+- EVID：`EVID-002` China/Korea 官方首发公告 source registry；LPL 中心微博证明首发语义但访问/时间/身份/raw 合同不完整，LCK 规则证明五人 entry 披露语义但逐场公开 channel 未定位。双区 eligible 均为 0，裁决 `blocked_registry_incomplete`。
 
 ## 待完成
 
-- M3R：下一任务 `M3R-005A`，只判断新增 Game Result / roster availability 等原子证据是否足以授权 P1；默认停止统计恢复并保留生成式 Elo。701 条新 Final、M3R-006、M4、策略、PnL 和执行继续阻塞。
+- EVID/M3R：EVID-001/EVID-002 没有 eligible source，forward collection 未授权；`M3R-006` 继续 Blocked。701 条新 Final、M4、策略、PnL 和执行继续阻塞；当前无获授权的下一项开发或统计建模任务。
 
 详细任务、依赖和验收条件见 `docs/TASK_BREAKDOWN.md`。

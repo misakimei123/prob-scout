@@ -1,0 +1,135 @@
+{
+  "registry_schema_version": 1,
+  "task_id": "EVID-002",
+  "audited_at_utc": "2026-08-14T07:54:55Z",
+  "source_contract": {
+    "target_fact": "actual_game_1_starting_lineup",
+    "target_regions": [
+      "China",
+      "Korea"
+    ],
+    "required_capabilities": [
+      "official_ownership",
+      "actual_game1_five_player_semantics",
+      "target_region_scope",
+      "stable_post_permalink",
+      "login_free_stable_access",
+      "available_at_seconds",
+      "stable_event_team_player_ids",
+      "immutable_raw_capture"
+    ],
+    "eligibility_rule": "one_source_per_region_must_independently_satisfy_every_required_capability",
+    "capability_stitching": "forbidden"
+  },
+  "sources": [
+    {
+      "source_id": "lpl_official_weibo",
+      "source_name": "LPL official central Weibo account",
+      "region": "China",
+      "status": "conditional_api_probe_and_identity_contract_required",
+      "official_ownership": true,
+      "actual_game1_five_player_semantics": true,
+      "target_region_scope": true,
+      "stable_post_permalink": true,
+      "login_free_stable_access": false,
+      "available_at_seconds": false,
+      "stable_event_team_player_ids": false,
+      "immutable_raw_capture": false,
+      "reason": "The central LPL account repeatedly publishes next-day BO3/BO5 starting-lineup notices with stable post permalinks. Public pages expose minute-level display times but access is inconsistent for automation, while the official CLI/API requires login and the free plan is limited to the caller's own data. No authorized response currently proves seconds-level available_at or canonical event/team/player IDs.",
+      "evidence_urls": [
+        "https://www.weibo.com/5756404150/PC1x98y8x",
+        "https://www.weibo.com/u/5756404150",
+        "https://open.weibo.com/cli/index"
+      ]
+    },
+    {
+      "source_id": "lpl_team_weibo_accounts",
+      "source_name": "LPL official team Weibo accounts",
+      "region": "China",
+      "status": "fallback_fragmented_not_registry_ready",
+      "official_ownership": true,
+      "actual_game1_five_player_semantics": true,
+      "target_region_scope": false,
+      "stable_post_permalink": true,
+      "login_free_stable_access": false,
+      "available_at_seconds": false,
+      "stable_event_team_player_ids": false,
+      "immutable_raw_capture": false,
+      "reason": "Individual official team accounts can publish exact five-player lineups, but a complete, versioned registry of every target team and a uniform publication contract have not been established. The same Weibo access, timestamp and identity gaps remain.",
+      "evidence_urls": [
+        "https://weibo.com/6198774314/5256198858218367",
+        "https://open.weibo.com/cli/index"
+      ]
+    },
+    {
+      "source_id": "lpl_team_x_accounts",
+      "source_name": "LPL official team X accounts",
+      "region": "China",
+      "status": "supplemental_not_complete",
+      "official_ownership": true,
+      "actual_game1_five_player_semantics": true,
+      "target_region_scope": false,
+      "stable_post_permalink": true,
+      "login_free_stable_access": false,
+      "available_at_seconds": true,
+      "stable_event_team_player_ids": false,
+      "immutable_raw_capture": false,
+      "reason": "An official team account demonstrates a five-player prematch lineup and X documents seconds-level created_at via post lookup. Reading public post data through the official API requires an app and bearer token, and no complete LPL team registry or canonical event/player mapping is proven.",
+      "evidence_urls": [
+        "https://x.com/TOP_Esports_/status/2043717738187964458",
+        "https://docs.x.com/x-api/posts/get-posts-by-ids",
+        "https://docs.x.com/x-api/getting-started/getting-access"
+      ]
+    },
+    {
+      "source_id": "lck_league_entry_disclosure",
+      "source_name": "LCK league-office match entry disclosure",
+      "region": "Korea",
+      "status": "blocked_public_disclosure_channel_unresolved",
+      "official_ownership": true,
+      "actual_game1_five_player_semantics": true,
+      "target_region_scope": true,
+      "stable_post_permalink": false,
+      "login_free_stable_access": false,
+      "available_at_seconds": false,
+      "stable_event_team_player_ids": false,
+      "immutable_raw_capture": false,
+      "reason": "The 2026 LCK rulebook defines a match entry as exactly five players and says the league office discloses it after both teams arrive. The audit did not locate the official per-match public endpoint, permalink format, publication timestamp, stable identities or raw retention mechanism.",
+      "evidence_urls": [
+        "https://lolesports.com/ko-KR/news/2026-lck-rulebook",
+        "https://lolesports.com/ko-KR/lolesports?leagues=lck"
+      ]
+    },
+    {
+      "source_id": "lck_team_social_accounts",
+      "source_name": "LCK official team social accounts",
+      "region": "Korea",
+      "status": "blocked_no_repeatable_lineup_pattern_evidence",
+      "official_ownership": true,
+      "actual_game1_five_player_semantics": false,
+      "target_region_scope": false,
+      "stable_post_permalink": true,
+      "login_free_stable_access": false,
+      "available_at_seconds": false,
+      "stable_event_team_player_ids": false,
+      "immutable_raw_capture": false,
+      "reason": "Official team accounts exist, but this audit found no repeatable, cross-team regular-season pattern proving that they publish the exact Game 1 five-player entry before T-15. Absence of indexed examples is an evidence gap, not proof that no such posts exist.",
+      "evidence_urls": [
+        "https://lolesports.com/ko-KR/lolesports?leagues=lck",
+        "https://docs.x.com/x-api/getting-started/getting-access"
+      ]
+    }
+  ],
+  "next_evidence_required": {
+    "China": [
+      "A permitted official response sample for the central LPL feed with seconds-level created_at and raw bytes",
+      "A deterministic mapping from announcement to canonical event, team and five player IDs",
+      "A versioned coverage audit showing the central feed covers the target LPL BO3/BO5 scope"
+    ],
+    "Korea": [
+      "The official per-match entry disclosure endpoint or channel named by LCK",
+      "A stable permalink or source post ID with seconds-level publication time",
+      "A raw sample proving both teams' exact five-player Game 1 entry and stable identities"
+    ]
+  }
+}

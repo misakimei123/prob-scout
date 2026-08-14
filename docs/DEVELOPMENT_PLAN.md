@@ -8,7 +8,7 @@
 >
 > 当前题材：League of Legends（LOL）职业比赛胜负预测
 >
-> 当前阶段：Research First；Gate 1 已失败并停止旧 MODEL-004 路线，当前按 M3R 恢复计划建立新 seal 与 P0 恢复模型；M4、策略、PnL 和执行继续阻塞
+> 当前阶段：Research First；Gate 1 与 M3R P0 均未通过，M3R-005A 已 Kill 当前统计恢复路线并保留生成式 Elo；EVID-002 的 China/Korea 官方来源 registry 仍无 eligible source，新 Final、M4、策略、PnL 和执行继续阻塞
 
 > 执行清单：[TASK_BREAKDOWN.md](./TASK_BREAKDOWN.md)
 
@@ -40,6 +40,24 @@ ProbScout 只维护两份核心计划文档，不复制 IronPilot 的多层治�
 M3R-004 已建立 1,281/430/743/701 的独立 recovery split。M3R-005 P0 在 1,173 条公开 evaluation 汇总上相对生成式 Elo 略优，但自然构成 Fold 1/2 双指标劣化、Fold 4 Log Loss 劣化，固定共同 `Region×BO` 构成后 3/4 folds 双指标劣化，因此状态为 `failed_public_stability_stop_before_final`。
 
 701 条新 Final Test 继续 sealed，M3R-006 不获授权。后续不得通过搜索 half-life、Elo K、L2、support threshold 或删分段来消费当前公开结果；只有补充真实 Game Result / roster availability 等新增原子证据并单独批准 P1，才允许产生新候选。默认路径是保留生成式 Elo、停止统计恢复并继续阻塞 M4。
+
+### 0.3 2026-08-14 P1 evidence Kill 决策
+
+M3R-005A 已完成新增原子证据审计。Leaguepedia 当前 schema 虽有逐局 winner 和 player fields，但五个主要公开反例的目标实际 roster 在 `T-15m` revision 中 0/5 可得；最近一次已发布 roster 在 10/10 team-sides 可得，却与赛后目标 lineup 10/10 相同，不能解释反例。固定 `scale=400/K=20` 的全合法局序枚举显示，单个已完成系列赛的 sequential update 相对现有 batch update 对紧邻下一系列赛概率的一步影响小于 `0.0097`，且未证明修复方向；五个反例的 P0–Elo 位移为 `0.0807–0.1816`。
+
+因此 P1 裁决为 `kill_recovery_model_keep_generative_elo`：不授权 roster/player、逐局 sequential Elo、Patch/micro-stat 或其他 P1 模型，不 release 新 Final，不进入 M3R-006。当前无后续统计建模任务获授权；若未来出现独立、不可变、带秒级 `available_at` 的赛前 lineup/roster feed，必须创建新任务合同重新审查，而不是复用本次公开窗口继续搜索。
+
+### 0.4 2026-08-14 赛前 actual lineup source gate
+
+EVID-001 将未来 lineup 路线拆为 source feasibility、forward collection 和 P1 authorization 三个独立裁决。当前审计的 Riot/GRID Fixtures、Leaguepedia TournamentRosters/ScoreboardGames、Oracle's Elixir 与官方公告均未同时满足 Research 权限、Game 1 实际首发语义、稳定 ID、秒级 `available_at`、T-15 capture 和 immutable raw 六项门槛，状态为 `blocked_no_eligible_source`。
+
+因此当前不实现持续 collector，也不把 tournament roster、last-known roster 或赛后 player rows 降级接入。未来只有单一来源先通过 source gate，才可按冻结的 China/Korea 28 天前瞻协议建立新任务；source gate Go 只代表 `ReadyForForwardCollection`，不自动授权 P1、Final release 或 M3R-006。
+
+### 0.5 2026-08-14 官方公告 source registry 审计
+
+EVID-002 将 EVID-001 中异构的“官方公告”候选拆成 China/Korea 分区 registry，并要求每个目标赛区至少有一条来源独立满足官方归属、Game 1 双方五人语义、目标赛区覆盖、稳定 permalink、无需登录的稳定访问、秒级 `available_at`、稳定 Event/Team/Player ID 与 immutable raw，禁止跨账号或平台拼接能力。
+
+LPL 官方微博已证明中心账号会发布赛前五人首发及稳定 permalink，但公开页面仅有分钟级时间，自动访问不稳定，官方 CLI/API 需要登录，且当前没有 canonical ID/raw response 合同；LCK 官方规则已证明联盟持有并披露双方五人 match entry，但逐场公开 endpoint、permalink 和秒级时间尚未定位。因此 China/Korea eligible 均为 0，裁决 `blocked_registry_incomplete`；28 天采集仍未授权。未来若接受 authenticated API，必须显式建立新任务修改 login-free 门槛并审核凭证、费用、retention 与响应样例，不能静默放宽本次合同。
 
 ## 1. 项目定义
 

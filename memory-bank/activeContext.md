@@ -33,10 +33,13 @@
 - `M3R-003` 已将 identity builder 泛化为跨年度 exact relation 审核，但没有放宽 identity：`Tournaments.Year` 仅为描述字段，Competition 仍由候选赛事时点的 `OverviewPage -> League/Region` relation 证明。3,759 candidates 得到 3,155 fully resolved、604 blocked；202/694 team keys Missing、267/267 competition keys Resolved、Ambiguous 为 0。3,155 条 Series Result 与 `T-15m` Feature Snapshot 成员完全一致，与旧 M2 corpus overlap 为 0，source-time/snapshot-lead/赛后字段 leakage 均为 0；Identity/Series/Feature SHA-256 分别为 `8f3e7aeadc9cf071adbe21fd74becd52126cd720fbe017b45b4755964d7bb331`、`dff9c9ee61cabf0c3a5a0a6aa9518fcd02cf6d28aa02a1cae6d6cd6a7817e6ac`、`8433cc10ee73cab042049d0afe0f81cfc0d96504348346178fb6c4baaa3c7f2b`。
 - `M3R-004` 已用独立 recovery context 建立新 split：Train/Validation/Calibration/sealed Final 为 1,281/430/743/701，窗口依次为 2025-07–12、2026-01–02、2026-03–04、2026-05–06。旧 356 场 Final 的 commitment 已从旧 Feature Snapshot 重算，与整个新 corpus 的 member/temporal overlap 均为 0；新 Final 只公开 count 与 commitment `d8b3f5e2cca5eb707173a1ea4a8881c0b9e764173e6d24a373899639fab3a130`。split SHA-256 为 `ed7564bf68a4e16400c1d712242861a03a32893ecad5a91d814c86c1dcba64b1`，aggregate-only coverage 不输出 final IDs 或 label。
 - `M3R-005` 已实现 P0 两速 Feature Lab、series-atomic game-count Elo、fixed game-Elo-logit offset residual 与 BO3/BO5 DP。2,454 个 model rows、39,264 个 audit rows 的 source-time violation 为 0；1,173 条公开 Walk-forward 汇总相对 Elo 的 Brier/Log Loss delta 为 `-0.00115008/-0.00180314`，但 Fold 1/2 双指标劣化、Fold 4 Log Loss 劣化，固定共同 `Region×BO` 构成后 3/4 folds 双指标劣化。状态为 `failed_public_stability_stop_before_final`，273 条 fallback，新 701 条 Final 未 release；artifact SHA-256 为 `f4e4892ca5daffd5edb1bfc2b785cf74cb8bb8fcc26860c2ab058c8d441a2144`。
+- `M3R-005A` 已审计新增 Game Result / roster evidence 并裁决 `kill_recovery_model_keep_generative_elo`。Leaguepedia 当前 schema 有逐局 winner/player fields，但五个主要公开反例的目标 roster 在 `T-15m` revision 中 0/5 可得；10/10 last-known team-side roster 虽在 cutoff 前可审计，却与赛后目标 lineup 10/10 相同。固定 P0 Elo 合同枚举所有合法局序后，单个已完成系列赛对紧邻下一系列赛概率的一步影响小于 `0.0097` 且方向未证明，未能针对 `0.0807–0.1816` 的 P0–Elo 反例位移建立修复预期。未搜索参数，701 条新 Final 未 release。
+- `EVID-001` 已建立赛前 `actual_game_1_starting_lineup` 独立 source gate。Riot/GRID、Leaguepedia TournamentRosters、Leaguepedia ScoreboardGames、Oracle's Elixir 与官方公告五类来源中 eligible 为 0/5，裁决 `blocked_no_eligible_source`：前者访问/字段语义未确认，tournament roster 不是实际首发，ScoreboardGames/OE 是赛后事实，官方公告尚无冻结 registry/稳定 ID/完整性证据。未来 28 天 China/Korea BO3/BO5 观察协议已预注册，但 `forward_collection_authorized=false`；未采集 raw、未训练模型、未访问 Final。
+- `EVID-002` 已将官方公告拆成 China/Korea 分区 registry。LPL 官方微博已证明中心账号、赛前五人公告语义和稳定 permalink，但缺无需登录的稳定访问、秒级时间、canonical Event/Team/Player ID 与 immutable raw；LCK 2026 规则已证明双方五人 match entry 及联盟披露语义，但逐场公开 endpoint/permalink/秒级时间未定位。两个赛区 eligible 均为 0，裁决 `blocked_registry_incomplete`，28 天采集仍未授权。
 
 ## 下一任务
 
-下一任务是 `M3R-005A` 决定是否存在足够新增原子证据授权 P1，默认选择停止统计恢复并保留生成式 Elo。不得 release 或推导 701 条 sealed Final 成员，也不得因已看到 P0 四窗结果而搜索 half-life、Elo K、L2、support threshold、删分段或同源 feature 组合。只有先证明真实 Game Result / roster availability 等新 evidence 的 `T-15m` 秒级可得性和针对性，才可另行批准 P1；M3R-006、M4、策略、PnL 与执行继续阻塞。
+当前没有获授权的下一项开发或统计建模任务。EVID-001/EVID-002 已完成 source feasibility 与官方公告 registry，但 China/Korea 均没有 eligible source，不能启动 forward collection；M3R-006 的依赖仍不成立，701 条 sealed Final、M4、策略、PnL 与执行继续阻塞。未来只有获得新的官方响应样例、稳定时间/身份/raw 证据并建立新任务，才能复审 source gate；不能直接进入 P1/M3R-006，也不能复用已观察的 P0 窗口搜索参数或 feature 组合。
 
 关键验收边界：
 
@@ -67,4 +70,4 @@
 
 ## 首次检查
 
-进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/RECOVERY_MODEL_P0.md`、`docs/RECOVERY_TEMPORAL_SPLIT.md`、`docs/TASK_BREAKDOWN.md` 与 `CONTEXT.md`。下一任务只执行 `M3R-005A` P1 evidence Go/Kill 决策；未经新证据授权不继续建模，不 release 新 Final、不重跑 MODEL-007、不开始 `BACK-001`。
+进入新会话后先运行 `git status --short --branch` 和 `git log -3 --oneline`，确认远程提交与工作区状态，再读取 `docs/EVID_001_PREMATCH_LINEUP_FEASIBILITY.md`、`docs/RECOVERY_P1_EVIDENCE_DECISION.md`、`docs/TASK_BREAKDOWN.md` 与 `CONTEXT.md`。当前 source gate 为 `blocked_no_eligible_source`；未经全新任务合同与新增外部证据，不启动 forward collection、不继续建模、不 release 新 Final、不执行 M3R-006、不重跑 MODEL-007、不开始 `BACK-001`。

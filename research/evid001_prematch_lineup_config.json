@@ -1,0 +1,116 @@
+{
+  "config_schema_version": 1,
+  "task_id": "EVID-001",
+  "audited_at_utc": "2026-08-14T07:38:31Z",
+  "evidence_contract": {
+    "target_fact": "actual_game_1_starting_lineup",
+    "decision_cutoff_minutes": 15,
+    "players_per_team": 5,
+    "required_source_capabilities": [
+      "permitted_research_access",
+      "actual_game_1_lineup",
+      "stable_event_team_player_ids",
+      "available_at_seconds",
+      "capturable_by_t15",
+      "immutable_raw_capture"
+    ]
+  },
+  "forward_observation_protocol": {
+    "authorization": "blocked_until_source_gate_go",
+    "target_regions": [
+      "China",
+      "Korea"
+    ],
+    "target_best_of": [
+      3,
+      5
+    ],
+    "start_rule": "first_monday_00_00_utc_at_least_72_hours_after_source_gate_go_and_contract_hash_freeze",
+    "duration_days": 28,
+    "capture_checkpoints_minutes_before_start": [
+      60,
+      30,
+      15
+    ],
+    "include_rule": "all_source_announced_bo3_bo5_series_in_target_regions_with_scheduled_start_inside_window",
+    "exclude_rule": "only_series_cancelled_before_t15_or_never_assigned_two_exact_teams",
+    "postgame_confirmation": "game_1_scoreboard_player_links",
+    "go_thresholds": {
+      "minimum_observed_series": 80,
+      "minimum_overall_t15_complete_coverage": 0.9,
+      "minimum_segment_t15_complete_coverage": 0.8,
+      "minimum_segment_series_for_threshold": 10,
+      "minimum_confirmed_lineup_accuracy": 0.95,
+      "minimum_changed_lineup_team_sides": 10,
+      "maximum_accepted_identity_ambiguities": 0,
+      "maximum_accepted_time_violations": 0
+    }
+  },
+  "sources": [
+    {
+      "source_id": "riot_grid_fixtures",
+      "source_name": "Riot Esports Data via GRID Fixtures Service",
+      "status": "blocked_contract_and_semantics_unconfirmed",
+      "permitted_research_access": false,
+      "actual_game_1_lineup": false,
+      "stable_event_team_player_ids": true,
+      "available_at_seconds": false,
+      "capturable_by_t15": false,
+      "immutable_raw_capture": false,
+      "reason": "Official public material documents upcoming tournaments, teams, players and matches, but current access is commercial through GRID and does not document actual Game 1 lineup or seconds-level publication semantics for this project.",
+      "evidence_url": "https://riotesportsdata.com/en-us/league-of-legends/"
+    },
+    {
+      "source_id": "leaguepedia_tournament_rosters",
+      "source_name": "Leaguepedia TournamentRosters plus page revisions",
+      "status": "rejected_tournament_roster_is_not_actual_lineup",
+      "permitted_research_access": true,
+      "actual_game_1_lineup": false,
+      "stable_event_team_player_ids": true,
+      "available_at_seconds": true,
+      "capturable_by_t15": true,
+      "immutable_raw_capture": true,
+      "reason": "RosterLinks describes the event roster and may contain substitutes; it does not identify the five players who will start Game 1.",
+      "evidence_url": "https://lol.fandom.com/wiki/Module:CargoDeclare/TournamentRosters"
+    },
+    {
+      "source_id": "leaguepedia_scoreboard_games",
+      "source_name": "Leaguepedia ScoreboardGames plus page revisions",
+      "status": "rejected_postgame_fact",
+      "permitted_research_access": true,
+      "actual_game_1_lineup": true,
+      "stable_event_team_player_ids": true,
+      "available_at_seconds": true,
+      "capturable_by_t15": false,
+      "immutable_raw_capture": true,
+      "reason": "Team1Players and Team2Players identify the played lineup, but the audited P0 counterexamples had no target lineup in the T-15 revision.",
+      "evidence_url": "https://lol.fandom.com/wiki/Module:CargoDeclare/ScoreboardGames"
+    },
+    {
+      "source_id": "oracles_elixir_game_rows",
+      "source_name": "Oracle's Elixir annual game rows",
+      "status": "rejected_no_row_level_available_at",
+      "permitted_research_access": true,
+      "actual_game_1_lineup": true,
+      "stable_event_team_player_ids": false,
+      "available_at_seconds": false,
+      "capturable_by_t15": false,
+      "immutable_raw_capture": true,
+      "reason": "Annual files can confirm postgame player rows but do not provide an immutable row-level publication time proving T-15 availability.",
+      "evidence_url": "https://oracleselixir.com/tools/downloads"
+    },
+    {
+      "source_id": "official_team_or_league_announcements",
+      "source_name": "Official team or league lineup announcements",
+      "status": "probe_only_heterogeneous",
+      "permitted_research_access": true,
+      "actual_game_1_lineup": true,
+      "stable_event_team_player_ids": false,
+      "available_at_seconds": true,
+      "capturable_by_t15": false,
+      "immutable_raw_capture": false,
+      "reason": "Some official posts may announce a lineup with a public timestamp, but there is no frozen cross-region source registry, stable ID mapping, completeness evidence or immutable feed contract.",
+      "evidence_url": null
+    }
+  ]
+}

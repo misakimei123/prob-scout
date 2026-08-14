@@ -398,18 +398,37 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 - 验收：同一 series 的小局不得跨 split；残差特征只消费 cutoff 前已完成小局及其 pregame Elo，记录 `source_max_at/input_count/status`；无支持条件回退 Elo；模型训练协议与最终冻结协议一致；完整报告自然构成、固定 `Region×BO` composition、所有时间窗口、赛区、BO、unsupported cell 与反例。P0 不引入 tree model、目标实际首发/选边/draft、全量 roster/Patch micro-stat 或完整 Bayesian 层级模型；这些 P1 假设须等 P0 结果后另行授权。
 - 证据：2026-08-14 新增 `research/model008_recovery_model.py`、固定 config、轻量 builder、3 个模型测试与 `docs/RECOVERY_MODEL_P0.md`。因 ScoreboardGames 无逐局 winner，明确采用 `series_atomic_game_count_batch` 而不伪造局序；2,454 个 model rows 与 39,264 个 `source_max_at/input_count/status` audit rows 的 source-time violation 为 0。四个自然月 Walk-forward 共 1,173 evaluation，Pooled Brier/Log Loss 相对生成式 Elo为 `-0.00115008/-0.00180314`，但 Fold 1/2 双指标劣化、Fold 4 Log Loss 劣化；固定共同 `Region×BO` composition 后 3/4 folds 双指标劣化，273 行因 support 不足回退 Elo。状态为 `failed_public_stability_stop_before_final`，701 条新 Final 未 release，artifact SHA-256 为 `f4e4892ca5daffd5edb1bfc2b785cf74cb8bb8fcc26860c2ab058c8d441a2144`，相同输入双构建一致。
 
-### [ ] M3R-005A 决定是否授权新增证据的 P1
+### [x] M3R-005A 决定是否授权新增证据的 P1
 
 - 依赖：M3R-005
 - 输出：基于新增原子证据可得性的 P1 Go / Kill 决策，或正式停止恢复模型路线并保留生成式 Elo。
 - 验收：不得 release 新 Final；不得仅因看过 P0 四窗结果而搜索 half-life、Elo K、L2、support threshold、删分段或同源特征组合。Go 必须先证明新增 Game Result / roster availability 等 evidence 在 `T-15m` 可得、秒级来源可审计且预期修复具体反例。
+- 证据：2026-08-14 完成 `docs/RECOVERY_P1_EVIDENCE_DECISION.md` 与确定性 `research/m3r005a_game_order_bound.py`。Leaguepedia schema/Cargo probe 证明逐局 winner/player fields 存在，但五个主要公开反例的目标实际 roster 在 cutoff revision 中 0/5 可得；10/10 team-sides 的 last-known roster 虽可在 cutoff 前审计，却与赛后目标 lineup 10/10 相同。固定 `scale=400/K=20` 枚举全部合法 BO3/BO5 局序后，单个已完成系列赛对紧邻下一系列赛概率的一步影响小于 `0.0097` 且方向未证明，无法针对 P0–Elo 位移为 `0.0807–0.1816` 的反例建立修复预期。裁决为 `kill_recovery_model_keep_generative_elo`；未搜索参数，701 条新 Final 未 release。
 
 ### [ ] M3R-006 作出恢复 Gate 1 决策
 
 - 依赖：M3R-005A 明确授权且新的公开 Walk-forward 候选满足稳定性门槛
 - 输出：使用全新 sealed Final Test 的一次性继续或停止结论。
 - 验收：旧 Final 只作为 retired diagnostic evidence；新 Final 主评估只成功运行一次，失败结果永久保留。
-- 当前状态：Blocked；M3R-005 P0 未通过公开时间稳定性检查，禁止 release 新 Final。
+- 当前状态：Blocked；M3R-005A 已 Kill P1，依赖不成立，禁止 release 新 Final。
+
+## 7B. EVID：独立前瞻证据
+
+目标：统计恢复路线 Kill 后，只对真正新增、可时间化的外部原子证据建立独立合同；source feasibility、forward collection 与 P1 authorization 必须分别裁决。
+
+### [x] EVID-001 审计赛前实际首发来源与冻结前瞻合同
+
+- 依赖：M3R-005A 已完成且不恢复当前模型路线。
+- 输出：赛前 `actual_game_1_starting_lineup` source registry、六项合取门禁、前瞻观察协议和 fail-closed observation auditor。
+- 验收：不得训练模型、读取/release Final 或进入 M3R-006；明确区分 tournament roster、赛后 actual lineup 与 T-15 actual lineup；只有单一来源同时具备 Research 权限、稳定 ID、秒级 `available_at`、T-15 capture 与 immutable raw 才能授权采集。
+- 证据：2026-08-14 新增 `research/evid001_prematch_lineup_config.json`、`research/evid001_prematch_lineup.py`、7 个定向测试与 `docs/EVID_001_PREMATCH_LINEUP_FEASIBILITY.md`。审计 Riot/GRID、Leaguepedia TournamentRosters、Leaguepedia ScoreboardGames、Oracle's Elixir 和官方公告五类来源，得到 eligible source `0/5`，裁决 `blocked_no_eligible_source`。冻结的未来协议要求 source gate Go 后等待至少 72 小时，从首个 Monday `00:00 UTC` 开始连续观察 28 天 China/Korea 全部 BO3/BO5，并按 T-60/T-30/T-15 capture 与 Game 1 赛后核验执行；当前 `forward_collection_authorized=false`。Config/code/canonical-LF-output SHA-256 分别为 `721ed109b6ab7364f0cb433a97e45be6285e3de118d1775801cbb6fa717d1b9c`、`9692414c0c045897552b0be74348f234f36e1e7ad8a2cc289ed5400f8bae1b41`、`b8c9bd606cb5c35585579530cfd5d62d2132a074473c48f4a648e0680e69b29a`。Python 3.12 下 7 个测试、Ruff 0.12.9 check/format 通过；未采集 raw、未训练模型、未访问 Final。
+
+### [x] EVID-002 建立 China/Korea 官方首发公告 source registry
+
+- 依赖：EVID-001 已完成且官方公告仍为未冻结的候选路线。
+- 输出：分 China/Korea 的官方 league/team channel registry、八项静态合取门禁、逐来源缺口与区域级 Go/Block 审计器。
+- 验收：每个目标赛区必须有一条来源独立证明官方归属、Game 1 双方五人语义、目标赛区覆盖、稳定 permalink、无需登录的稳定访问、秒级 `available_at`、稳定 Event/Team/Player ID 与 immutable raw；禁止跨来源拼接，不启动 28 天采集。
+- 证据：2026-08-14 新增 `research/evid002_official_lineup_sources.json`、`research/evid002_official_lineup_sources.py`、7 个定向测试与 `docs/EVID_002_OFFICIAL_LINEUP_SOURCE_REGISTRY.md`。LPL 官方微博已证明中心账号和赛前五人公告语义，但缺稳定无登录访问、秒级时间、canonical IDs 与 raw；LCK 官方规则已证明五人 entry 及联盟披露语义，但逐场公开 endpoint 未定位。China/Korea eligible 均为 0，裁决 `blocked_registry_incomplete`，`forward_collection_authorized=false`。Registry/code/canonical-LF-output SHA-256 分别为 `eee576ca1c2623fc740be68fcbc9db205658c91e9a50995936156dad81b0596d`、`4923fc8e39aeccd20c517be55b64e667a9713305fa85d195d107f34d85edf8bd`、`77ba55c8fa35c67f0b169ed78aa6ef496699e77820464d809ca3760442dd8919`。Python 3.12 下 7 个测试、Ruff 0.12.9 check/format 通过；未采集 raw、未训练模型、未访问 Final。
 
 ## 8. M4：历史双策略回测
 
@@ -675,5 +694,10 @@ M2 的 `HIST-001`–`HIST-010` 已闭合，Gate 判定更新为 `ReadyForM3`：1
 34. `M3R-001`：已完成失败归因并永久退役旧 Final Test；构成变化与共同分段内退化均有实质贡献，下一任务仅授权 `M3R-002` 新数据扩展。
 35. `M3R-002`：已建立 3,759 条新 source-identity candidates；覆盖 349 个日期、25 Patch、9 Region source value 和 BO3/BO5，与旧 1,778 条 member/temporal overlap 均为 0。
 36. `M3R-003`：已为新 candidates 构建跨年度 exact、time-bounded identity evidence；3,155 条 fully resolved Series Result 与 `T-15m` Feature Snapshot 成员一致且 leakage 为 0，604 条因缺失 team relation 继续 fail closed。
+37. `M3R-004`：已建立 1,281/430/743/701 的独立 recovery split；旧 Final 与整个新 corpus 的成员/时间 overlap 均为 0，新 Final 只发布 count 与 commitment。
+38. `M3R-005`：P0 在 pooled Development 略优于 Elo，但只在 1/4 自然 folds 与 1/4 固定共同 composition folds 双指标改善，停止在 Final release 前。
+39. `M3R-005A`：已审计逐局 winner 与 roster evidence；目标 roster 不满足 `T-15m`，last-known roster 对主要反例无增量，逐局顺序只有较小且方向未证的单步影响，P1 裁决为 Kill。
+40. `EVID-001`：已冻结赛前 actual Game 1 lineup 的六项 source gate 与未来 28 天观察协议；五类候选来源 eligible 为 0，当前不授权采集。
+41. `EVID-002`：已建立 China/Korea 官方 league/team channel registry；LPL 公告语义存在但数据访问/时间/身份合同不完整，LCK entry 语义存在但逐场公开 channel 未定位，双区 eligible 均为 0。
 
-M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-007`，但 Gate 1 最终裁决为 `failed_stop_modeling`。恢复阶段已完成 `M3R-001`–`M3R-005`；P0 未通过公开时间稳定性，下一任务为 `M3R-005A` 新增原子证据的 P1 Go/Kill 决策，默认停止统计恢复并保留生成式 Elo。新 Final、M3R-006、M4 的 `BACK-001` 及后续策略、PnL、执行任务继续阻塞。
+M0 已完成；M1 已以 `Conditional Go` 通过 Gate 0；M2 的 `HIST-001`–`HIST-010` 均已实现并记录证据，数据就绪 Gate 为 `ReadyForM3`；M3 已完成 `MODEL-001`–`MODEL-007`，但 Gate 1 最终裁决为 `failed_stop_modeling`。恢复阶段已完成 `M3R-001`–`M3R-005A`，P1 裁决为 `kill_recovery_model_keep_generative_elo`；EVID-001/EVID-002 又确认当前没有合格的赛前 actual lineup source，官方公告前瞻采集未获授权。新 Final、M3R-006、M4 的 `BACK-001` 及后续策略、PnL、执行任务继续阻塞。
